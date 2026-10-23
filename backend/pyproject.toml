@@ -1,0 +1,30 @@
+[project]
+name = "interview-platform-backend"
+version = "0.1.0"
+description = "Local AI mock-interview backend driven by Claude Code"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    # Interviewer voice (Kokoro TTS). GPU build of ONNX Runtime plus the CUDA 12 / cuDNN 9
+    # runtime DLLs as pip wheels, so no system CUDA install is needed. CPU fallback is automatic.
+    "kokoro-onnx>=0.6,<0.7",
+    "onnxruntime-gpu>=1.24,<1.27; sys_platform != 'darwin'",
+    "nvidia-cuda-runtime-cu12>=12.4,<13; sys_platform != 'darwin'",
+    "nvidia-cublas-cu12>=12.4,<13; sys_platform != 'darwin'",
+    "nvidia-cufft-cu12>=11.2,<12; sys_platform != 'darwin'",
+    "nvidia-cudnn-cu12>=9.1,<10; sys_platform != 'darwin'",
+]
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.uv]
+# kokoro-onnx depends on the CPU `onnxruntime` package, which installs the same `onnxruntime`
+# module as `onnxruntime-gpu` and would clobber it. Keep CPU onnxruntime only on macOS.
+override-dependencies = ["onnxruntime>=1.20.1; sys_platform == 'darwin'"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

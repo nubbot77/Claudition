@@ -1,0 +1,308 @@
+/*
+ * Interview Room design system (Tailwind v4 + shadcn tokens).
+ *
+ * Cascade layers, lowest to highest priority:
+ *   theme -> base (Tailwind preflight + our base) -> legacy (old styles.css) -> components -> utilities
+ * The old stylesheet is wrapped in `@layer legacy`, so its rules still beat preflight (un-migrated screens keep
+ * their look) while every Tailwind utility beats the old rules (new markup is never fought by old element rules).
+ * Token blocks below are unlayered on purpose: they win over the legacy :root variables of the same name.
+ */
+@layer theme, base, legacy, components, utilities;
+
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+
+/* ------------------------------------------------------------------------------------------------
+ * Theme -> utilities. `dark:` uses Tailwind's default (prefers-color-scheme), so it follows the OS.
+ * ---------------------------------------------------------------------------------------------- */
+@theme inline {
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-heading: var(--font-sans);
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-soft-foreground: var(--accent-soft-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-destructive-soft-foreground: var(--destructive-soft-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-soft: var(--success-soft);
+  --color-success-soft-foreground: var(--success-soft-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-warning-soft: var(--warning-soft);
+  --color-warning-soft-foreground: var(--warning-soft-foreground);
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-navy-foreground: var(--brand-navy-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-gd-1: var(--gd-1);
+  --color-gd-2: var(--gd-2);
+  --color-gd-3: var(--gd-3);
+  --color-gd-4: var(--gd-4);
+  --color-gd-5: var(--gd-5);
+
+  /* 8px cards (rounded-lg), 6px inputs/buttons (rounded-md), 4px chips (rounded-sm). */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 8px);
+  --radius-4xl: calc(var(--radius) + 8px);
+}
+
+@theme {
+  /* Slate-tinted, very soft elevation. Cards use shadow-xs/shadow-sm; overlays use shadow-md/lg. */
+  --shadow-xs: 0 1px 2px 0 rgb(15 23 42 / 0.04);
+  --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.05), 0 1px 3px 0 rgb(15 23 42 / 0.03);
+  --shadow-md: 0 4px 12px -2px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.05);
+  --shadow-lg: 0 12px 32px -8px rgb(15 23 42 / 0.16), 0 4px 8px -4px rgb(15 23 42 / 0.06);
+
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Tokens. Light by default; dark follows the OS.
+ * ---------------------------------------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+
+  --radius: 0.5rem;
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+
+  --background: #f8fafc; /* slate-50 */
+  --foreground: #0f172a; /* slate-900 */
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+
+  /* Brand navy: wordmark, headings that carry the brand, navy chips. */
+  --primary: #0f2a4a;
+  --primary-foreground: #ffffff;
+  --brand-navy: #0f2a4a;
+  --brand-navy-foreground: #ffffff;
+
+  /* Action blue: primary buttons, links, selection, progress, focus. */
+  --accent: #2563eb; /* blue-600 */
+  --accent-foreground: #ffffff;
+  --accent-hover: #1d4ed8; /* blue-700 */
+  --accent-soft: #eff6ff; /* blue-50 */
+  --accent-soft-foreground: #1d4ed8;
+
+  --secondary: #f1f5f9; /* slate-100 */
+  --secondary-foreground: #0f172a;
+  --muted: #f1f5f9;
+  --muted-foreground: #475569; /* slate-600 */
+
+  --success: #059669; /* emerald-600 */
+  --success-foreground: #ffffff;
+  --success-soft: #ecfdf5;
+  --success-soft-foreground: #047857;
+  --warning: #d97706; /* amber-600 */
+  --warning-foreground: #ffffff;
+  --warning-soft: #fffbeb;
+  --warning-soft-foreground: #b45309;
+  --destructive: #e11d48; /* rose-600 */
+  --destructive-foreground: #ffffff;
+  --destructive-soft: #fff1f2;
+  --destructive-soft-foreground: #be123c;
+
+  --border: #e2e8f0; /* slate-200 */
+  --input: #cbd5e1; /* slate-300: form controls get a slightly firmer edge */
+  --ring: #2563eb;
+
+  --chart-1: #2563eb;
+  --chart-2: #0f2a4a;
+  --chart-3: #059669;
+  --chart-4: #d97706;
+  --chart-5: #64748b;
+
+  /* Group-discussion speakers (text and dots on white). */
+  --gd-1: #2563eb;
+  --gd-2: #c2410c;
+  --gd-3: #7c3aed;
+  --gd-4: #0f766e;
+  --gd-5: #be185d;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+
+    --background: #020617; /* slate-950 */
+    --foreground: #f1f5f9;
+    --card: #0f172a; /* slate-900 */
+    --card-foreground: #f1f5f9;
+    --popover: #0f172a;
+    --popover-foreground: #f1f5f9;
+
+    --primary: #e2e8f0;
+    --primary-foreground: #0f172a;
+    --brand-navy: #173459;
+    --brand-navy-foreground: #ffffff;
+
+    --accent: #3b82f6; /* blue-500 */
+    --accent-foreground: #ffffff;
+    --accent-hover: #60a5fa;
+    --accent-soft: #172554;
+    --accent-soft-foreground: #93c5fd;
+
+    --secondary: #1e293b; /* slate-800 */
+    --secondary-foreground: #f1f5f9;
+    --muted: #1e293b;
+    --muted-foreground: #94a3b8; /* slate-400 */
+
+    --success: #10b981;
+    --success-foreground: #022c22;
+    --success-soft: #022c22;
+    --success-soft-foreground: #6ee7b7;
+    --warning: #f59e0b;
+    --warning-foreground: #451a03;
+    --warning-soft: #451a03;
+    --warning-soft-foreground: #fcd34d;
+    --destructive: #f43f5e;
+    --destructive-foreground: #ffffff;
+    --destructive-soft: #4c0519;
+    --destructive-soft-foreground: #fda4af;
+
+    --border: #1e293b; /* slate-800 */
+    --input: #334155; /* slate-700 */
+    --ring: #3b82f6;
+
+    --chart-1: #3b82f6;
+    --chart-2: #94a3b8;
+    --chart-3: #10b981;
+    --chart-4: #f59e0b;
+    --chart-5: #64748b;
+
+    --gd-1: #60a5fa;
+    --gd-2: #fb923c;
+    --gd-3: #a78bfa;
+    --gd-4: #2dd4bf;
+    --gd-5: #f472b6;
+  }
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Legacy bridge: re-points the old styles.css variable names at the new palette so un-migrated
+ * screens already read as one product. Delete this block together with styles.css.
+ * ---------------------------------------------------------------------------------------------- */
+:root {
+  --bg: var(--background);
+  --surface: var(--card);
+  --surface-2: #f8fafc;
+  --bg-sunken: var(--muted);
+  --border-strong: var(--input);
+  --text: var(--foreground);
+  --text-muted: var(--muted-foreground);
+  --text-faint: #94a3b8;
+  --accent-ink: var(--accent-foreground);
+  --focus: var(--ring);
+  --good: var(--success);
+  --good-soft: var(--success-soft);
+  --mid: var(--warning);
+  --mid-soft: var(--warning-soft);
+  --low: var(--destructive);
+  --low-soft: var(--destructive-soft);
+  --info-soft: var(--accent-soft);
+  --code-bg: var(--muted);
+  --font-serif: var(--font-sans);
+  --shadow-1: 0 1px 2px 0 rgb(15 23 42 / 0.05), 0 1px 3px 0 rgb(15 23 42 / 0.03);
+  --shadow-2: 0 12px 32px -8px rgb(15 23 42 / 0.16), 0 4px 8px -4px rgb(15 23 42 / 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface-2: #131c2e;
+    --text-faint: #64748b;
+    --shadow-1: 0 1px 2px 0 rgb(0 0 0 / 0.4);
+    --shadow-2: 0 16px 40px -12px rgb(0 0 0 / 0.7);
+  }
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Base
+ * ---------------------------------------------------------------------------------------------- */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+    -webkit-text-size-adjust: 100%;
+    scrollbar-gutter: stable;
+  }
+
+  body {
+    @apply bg-background text-sm text-foreground antialiased;
+    font-feature-settings: "cv11";
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Plain prose links (no class) look like links; styled anchors (buttons, nav) opt out by having a class. */
+  a:not([class]) {
+    color: var(--accent);
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+  }
+
+  a:not([class]):hover {
+    color: var(--accent-hover);
+  }
+
+  ::selection {
+    background-color: color-mix(in oklab, var(--accent) 22%, transparent);
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}
+
+/* Page container: 1280px max, 16/24/32px gutters. */
+@utility page-container {
+  width: 100%;
+  max-width: 80rem;
+  margin-inline: auto;
+  padding-inline: 1rem;
+
+  @media (width >= 40rem) {
+    padding-inline: 1.5rem;
+  }
+
+  @media (width >= 64rem) {
+    padding-inline: 2rem;
+  }
+}

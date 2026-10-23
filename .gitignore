@@ -1,0 +1,27 @@
+# Python
+backend/.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Runtime data: interview database, downloaded TTS models, generated prompts, code-run workspace
+backend/data/
+*.db
+*.sqlite3
+
+# Frontend
+node_modules/
+frontend/dist/
+
+# Secrets and local config
+.env
+.env.*
+*.local
+.claude/settings.local.json
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
