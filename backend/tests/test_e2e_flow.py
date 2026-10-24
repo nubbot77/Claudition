@@ -19,11 +19,13 @@ import pytest
 from app import interview as interview_module
 from app.claude_runner import ClaudeError, RunResult
 from app.interview import Busy, InterviewService
-from app.schemas import EventIn, EventType, InterviewProfile, OrchestratorStep, ReportDraft, RoundScore
+from app.rubrics import rubric_for
+from app.schemas import EventIn, EventType, InterviewProfile, OrchestratorStep, ReportDraft, RoundScore, RoundType
 from app.store import Store
 
 APT, GD, CODE, HR = "r1-apt", "r2-gd", "r3-code", "r4-hr"
-SCORES = {APT: ("Aptitude", 55), GD: ("Group Discussion", 68), CODE: ("Coding", 60), HR: ("HR", 74)}
+SCORES = {APT: ("Aptitude", 50), GD: ("Group Discussion", 70), CODE: ("Coding", 60), HR: ("HR", 80)}
+TYPES = {APT: "aptitude_mcq", GD: "group_discussion", CODE: "coding", HR: "hr"}
 PROFILE = InterviewProfile(company="Acme Corp", role="Software Engineer", experience="fresher")
 BLUEPRINT_KEY = Store.blueprint_key("Acme Corp", "Software Engineer", "fresher")
 
@@ -103,11 +105,13 @@ def _question(round_id: str, round_type: str, kind: str, text: str) -> Orchestra
 
 
 def _score(round_id: str) -> dict:
+    """A judge result that uses the round type's real rubric, every criterion at score/10 (consistent arithmetic)."""
     name, score = SCORES[round_id]
+    rubric = rubric_for(RoundType(TYPES[round_id]))
     return {
         "round_id": round_id, "round_name": name, "score": score, "verdict": "hire", "strengths": ["Clear"],
         "gaps": ["Edge cases"], "model_answer": "...",
-        "rubric": [{"criterion": "Clarity", "weight": 1.0, "score": score // 10, "comment": "ok"}],
+        "rubric": [{"criterion": c, "weight": w, "score": score // 10, "comment": "ok"} for c, w in rubric],
     }
 
 
@@ -269,7 +273,15 @@ def judge(monkeypatch) -> FakeJudge:
 
 
 @pytest.fixture
-def fake(service, monkeypatch, judge) -> FakeOrchestrator:
+def warmed(monkeypatch) -> list[str]:
+    keys: list[str] = []
+    monkeypatch.setattr(interview_module, "prewarm", lambda key, **_: keys.append(key))
+    monkeypatch.setattr(interview_module, "discard_prewarmed", lambda prefix: None)
+    return keys
+
+
+@pytest.fixture
+def fake(service, monkeypatch, judge, warmed) -> FakeOrchestrator:
     fake = FakeOrchestrator(service)
     monkeypatch.setattr(interview_module, "run_orchestrator", fake)
     monkeypatch.setattr(interview_module, "session_exists", fake.session_exists)
@@ -279,8 +291,10 @@ def fake(service, monkeypatch, judge) -> FakeOrchestrator:
 # ---------- tests ----------
 
 
-def test_full_interview_from_blueprint_to_final_report(service, fake, judge):
+def test_full_interview_from_blueprint_to_final_report(service, fake, judge, warmed):
     asyncio.run(_full_interview(Flow(service, fake), judge))
+    # a judge process is pre-started at each round start, a report process once the last round is judged
+    assert [k.split(':')[1] for k in warmed] == ['judge', 'judge', 'judge', 'judge', 'report']
 
 
 async def _full_interview(flow: Flow, judge: FakeJudge) -> None:
@@ -407,6 +421,11 @@ async def _full_interview(flow: Flow, judge: FakeJudge) -> None:
     assert state["step"]["report"]["round_scores"] == state["round_scores"]  # report reuses saved scores
     assert [r["round_id"] for r in judge.reports[0]["judged_rounds"]] == [APT, GD, CODE, HR]
     assert not any("round_score" in c.prompt or "recorded_round_scores" in c.prompt for c in fake.calls)
+    assert '"seconds_taken": 95' in prompts[APT]  # time management evidence for the aptitude rubric
+    assert '"stances"' in prompts[GD]  # who argued what in the group discussion
+    assert '"resume"' not in prompts[APT] and '"resume"' in prompts[HR]  # background only for background rounds
+    assert judge.reports[0]["research"]["round_notes"]  # the report's claims about the real process have a source
+    assert state["step"]["report"]["verdict"] == "lean_hire"  # recomputed from the overall score (64)
 
     # whole-run invariants
     assert len(fake.calls) == 16  # 14 turns + 2 budget nudges

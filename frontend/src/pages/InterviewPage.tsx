@@ -33,7 +33,8 @@ export function InterviewPage() {
         if (cancelled) return;
         setState(next);
         setLoadError(null);
-        if (next.status === "thinking") timer = window.setTimeout(tick, POLL_MS);
+        // keep polling while a turn runs or the judge is still scoring a round in the background
+        if (next.status === "thinking" || next.scoring?.length) timer = window.setTimeout(tick, POLL_MS);
       } catch (e) {
         if (cancelled) return;
         if (e instanceof ApiError && e.status === 404) {

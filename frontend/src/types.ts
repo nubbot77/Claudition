@@ -211,6 +211,8 @@ export interface InterviewState {
   blueprint: CompanyBlueprint | null;
   thinking_since: string | null;
   round_progress: RoundProgress | null;
+  /** Rounds the judge is still scoring in the background. */
+  scoring: string[];
 }
 
 export interface InterviewSummary {

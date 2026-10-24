@@ -14,12 +14,15 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from .budget import RoundProgress, compute_progress, violation
-from .claude_runner import DATA_DIR, ClaudeError, close_session, run_orchestrator, run_structured
+from .budget import CONVERSATIONAL, RoundProgress, compute_progress, violation
+from .claude_runner import (
+    DATA_DIR, ClaudeError, close_session, discard_prewarmed, json_schema_for, prewarm, run_orchestrator,
+    run_structured,
+)
 from .routing import JUDGE, Route, route
 from .code_runner import available_languages, run_tests
 from .diagram import describe as describe_diagram
-from .rubrics import CALIBRATION, rubric_for
+from .rubrics import CALIBRATION, rubric_for, verdict_for
 from .schemas import (
     Action, EventIn, EventType, FinalReport, InterviewProfile, OrchestratorStep, ReportDraft, RoundScore, RoundType,
     public_step,
@@ -37,6 +40,11 @@ RESEARCH_TIMEOUT_S = 15 * 60
 TURN_TIMEOUT_S = 6 * 60
 JUDGE_TIMEOUT_S = 5 * 60
 MAX_CODE_CHARS = 8000
+# what the judge and report writer get from the candidate's own material (characters)
+MAX_JD_CHARS = 3000
+MAX_RESUME_CHARS = 4000
+MAX_NOTES_CHARS = 1000
+MAX_BANK_QUESTIONS = 8
 MAX_PROGRESS_LINES = 40
 
 
@@ -87,6 +95,8 @@ class InterviewService:
         self.progress: dict[str, list[str]] = {}
         self.thinking_since: dict[str, str] = {}
         self._tasks: set[asyncio.Task[None]] = set()
+        # rounds being scored in the background: interview id -> round id -> task
+        self.judging: dict[str, dict[str, asyncio.Task[None]]] = {}
 
     # ---------- public API ----------
 
@@ -126,6 +136,7 @@ class InterviewService:
             "step": public_step(OrchestratorStep.model_validate(step)) if step else None,
             "transcript": self.store.transcript(interview_id),
             "round_scores": self.store.round_scores(interview_id),
+            "scoring": sorted(self.judging.get(interview_id, {})),
             "blueprint": interview["blueprint"],
         }
 
@@ -181,19 +192,68 @@ class InterviewService:
                     self._note(interview_id, "Budget still exceeded after one retry; accepting the step.")
             if result.cost_usd is not None:
                 self._note(interview_id, f"Session cost estimate so far ${result.cost_usd:.3f} (counts toward your plan's usage)")
-            if step.action == Action.round_feedback and step.round_id:
-                step.round_score = await asyncio.to_thread(self._judge_round, interview, step.round_id)
-            elif step.action == Action.final_report:
-                step.report = await asyncio.to_thread(self._write_report, interview)
+            if step.action == Action.final_report:
+                await self._wait_for_judging(interview_id)
+                step.report = await asyncio.to_thread(self._write_report, self._get(interview_id))
             self._record_step(interview_id, interview, step)
+            if step.action == Action.round_feedback and step.round_id:
+                # the candidate reads the closing line now; the score fills in when the judge is done
+                self._start_judging(interview_id, step.round_id)
+                if _next_round(interview["blueprint"], step.round_id) is None:
+                    await asyncio.to_thread(self._prewarm, interview_id, "report")
+            elif step.round_id and how.role == "round setup":
+                await asyncio.to_thread(self._prewarm, interview_id, "judge")  # ready by the end of this round
             if step.action == Action.final_report:
                 await asyncio.to_thread(close_session, interview_id)
+                await asyncio.to_thread(discard_prewarmed, f"{interview_id}:")
         except ClaudeError as exc:
             self.store.update_interview(interview_id, status="error", error=str(exc))
         except Exception as exc:  # keep the UI recoverable via Retry
             self.store.update_interview(interview_id, status="error", error=f"{type(exc).__name__}: {exc}")
         finally:
             self.thinking_since.pop(interview_id, None)
+
+    # ---------- background scoring ----------
+
+    def _prewarm(self, interview_id: str, kind: str) -> None:
+        model_type, prompt_file = (RoundScore, JUDGE_PROMPT_FILE) if kind == "judge" else (ReportDraft, REPORT_PROMPT_FILE)
+        prewarm(
+            f"{interview_id}:{kind}", schema=json_schema_for(model_type), system_prompt_file=prompt_file,
+            model=JUDGE.model, effort=JUDGE.effort,
+        )
+
+    def _start_judging(self, interview_id: str, round_id: str) -> None:
+        task = asyncio.create_task(self._judge_in_background(interview_id, round_id))
+        self.judging.setdefault(interview_id, {})[round_id] = task
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
+
+    async def _judge_in_background(self, interview_id: str, round_id: str) -> None:
+        try:
+            score = await asyncio.to_thread(self._judge_round, self._get(interview_id), round_id)
+            self._save_score(interview_id, score)
+        except Exception as exc:  # the final report re-judges any round left without a score
+            self._note(interview_id, f"Scoring {round_id} failed ({exc}); it will be retried for the final report.")
+        finally:
+            self.judging.get(interview_id, {}).pop(round_id, None)
+
+    async def _wait_for_judging(self, interview_id: str) -> None:
+        pending = list(self.judging.get(interview_id, {}).values())
+        if pending:
+            self._note(interview_id, "Waiting for the judge to finish scoring…")
+            await asyncio.gather(*pending, return_exceptions=True)
+
+    def _save_score(self, interview_id: str, score: RoundScore) -> None:
+        self.store.save_round_score(interview_id, score.round_id, score.model_dump(mode="json"))
+        self.store.add_transcript(
+            interview_id, "system", "Score", f"{score.round_name}: {score.score}/100 ({score.verdict})", score.round_id
+        )
+        # show it on the feedback screen if the candidate is still there
+        current = self.store.get_interview(interview_id)
+        step = (current or {}).get("step")
+        if step and step["action"] == Action.round_feedback.value and step.get("round_id") == score.round_id:
+            step["round_score"] = score.model_dump(mode="json")
+            self.store.update_interview(interview_id, step=step)
 
     def _record_step(self, interview_id: str, interview: dict[str, Any], step: OrchestratorStep) -> None:
         self.store.log_step(
@@ -204,12 +264,7 @@ class InterviewService:
         if step.action == Action.gd_turns and step.gd:
             for line in step.gd.utterances:
                 self.store.add_transcript(interview_id, "panelist", line.speaker, line.text, step.round_id)
-        if step.action == Action.round_feedback and step.round_score:
-            score = step.round_score
-            self.store.save_round_score(interview_id, score.round_id, score.model_dump(mode="json"))
-            self.store.add_transcript(
-                interview_id, "system", "Score", f"{score.round_name}: {score.score}/100 ({score.verdict})", step.round_id
-            )
+            self._record_gd_panel(interview_id, step)
 
         fields: dict[str, Any] = {"step": step.model_dump(mode="json"), "started": 1}
         fields["status"] = "finished" if step.action == Action.final_report else "ready"
@@ -220,6 +275,17 @@ class InterviewService:
             key = Store.blueprint_key(profile["company"], profile["role"], profile["experience"])
             self.store.cache_blueprint(key, blueprint)
         self.store.update_interview(interview_id, **fields)
+
+    def _record_gd_panel(self, interview_id: str, step: OrchestratorStep) -> None:
+        """Topic and each AI participant's stance, so the judge can tell who argued what."""
+        assert step.gd is not None
+        known = {
+            name for e in self.store.round_evidence(interview_id, step.round_id or "") if e["kind"] == "gd_panel"
+            for name in e["stances"]
+        }
+        new = {u.speaker: u.persona for u in step.gd.utterances if u.speaker not in known}
+        if new:
+            self.store.add_evidence(interview_id, step.round_id, "gd_panel", {"topic": step.gd.topic, "stances": new})
 
     # ---------- event → prompt ----------
 
@@ -274,6 +340,9 @@ class InterviewService:
             if board:
                 text = f"{text}\n\n[{board.splitlines()[0]}]".strip()
             self.store.add_transcript(interview_id, "candidate", "You", text, round_id)
+            meta = {k: payload[k] for k in ("answer_mode", "seconds_taken") if k in payload}
+            if meta:
+                self.store.add_evidence(interview_id, round_id, "answer_timing", meta)
 
         elif event.type == EventType.gd_user_spoke:
             self.store.add_transcript(interview_id, "candidate", "You", str(payload.get("text", "")), round_id)
@@ -305,14 +374,28 @@ class InterviewService:
         rnd = next((r for r in rounds if r["id"] == round_id), {"id": round_id, "name": round_id, "type": "technical"})
         rtype = RoundType(rnd["type"])
         profile = interview["profile"]
+        blueprint = interview.get("blueprint") or {}
         turns = [
             f"{'Candidate' if e['role'] == 'candidate' else e['speaker']}: {e['text']}"
             for e in self.store.transcript(interview_id)
             if e["round_id"] == round_id and e["role"] != "system"
         ]
+        candidate: dict[str, Any] = {k: profile.get(k) for k in ("company", "role", "experience")}
+        if notes := (profile.get("notes") or "").strip():
+            candidate["notes"] = notes[:MAX_NOTES_CHARS]
+        if rtype in CONVERSATIONAL:  # rounds about the candidate's background and fit
+            candidate["job_description"] = (profile.get("job_description") or "")[:MAX_JD_CHARS]
+            candidate["resume"] = (profile.get("resume_text") or "")[:MAX_RESUME_CHARS]
+        bank = [
+            q.get("question") for q in blueprint.get("question_bank", []) if q.get("round_type") == rtype.value
+        ][:MAX_BANK_QUESTIONS]
         data = {
-            "candidate": {k: profile.get(k) for k in ("company", "role", "experience")},
-            "round": {k: rnd.get(k) for k in ("id", "name", "type", "difficulty", "duration_min", "focus")},
+            "candidate": candidate,
+            "round": {
+                **{k: rnd.get(k) for k in ("id", "name", "type", "difficulty", "duration_min", "focus")},
+                "research_notes": rnd.get("notes", ""),
+                "reported_questions": bank,
+            },
             "rubric": [{"criterion": c, "weight": w} for c, w in rubric_for(rtype)],
             "calibration": CALIBRATION.get(rtype),
             "evidence": self.store.round_evidence(interview_id, round_id),
@@ -324,12 +407,15 @@ class InterviewService:
         self._note(interview_id, f"Judge: {JUDGE.model.removeprefix('claude-')} ({JUDGE.effort} effort) scoring {rnd.get('name')}")
         score, result = run_structured(
             prompt, RoundScore, system_prompt_file=JUDGE_PROMPT_FILE, model=JUDGE.model, effort=JUDGE.effort,
-            timeout_s=JUDGE_TIMEOUT_S,
+            timeout_s=JUDGE_TIMEOUT_S, warm_key=f"{interview_id}:judge",
         )
         if result.cost_usd is not None:
             read, out = result.tokens()
             self._note(interview_id, f"Judge call: {read / 1000:.1f}K tokens in, {out / 1000:.1f}K out, cost estimate ${result.cost_usd:.3f}")
-        return score.model_copy(update={"round_id": round_id, "round_name": rnd.get("name", round_id)})
+        checked = _checked_score(score, rtype)
+        if checked.score != score.score or checked.verdict != score.verdict:
+            self._note(interview_id, f"Guardrail: corrected the judge's arithmetic ({score.score} -> {checked.score})")
+        return checked.model_copy(update={"round_id": round_id, "round_name": rnd.get("name", round_id)})
 
     def _write_report(self, interview: dict[str, Any]) -> FinalReport:
         interview_id = interview["id"]
@@ -339,12 +425,22 @@ class InterviewService:
         answered = {e["round_id"] for e in self.store.transcript(interview_id) if e["role"] == "candidate"}
         for rnd in rounds:
             if rnd["id"] in answered and rnd["id"] not in scored:
-                score = self._judge_round(interview, rnd["id"])
-                self.store.save_round_score(interview_id, score.round_id, score.model_dump(mode="json"))
+                self._save_score(interview_id, self._judge_round(interview, rnd["id"]))
         scores = [RoundScore.model_validate(s) for s in self.store.round_scores(interview_id)]
         keep = ("round_id", "round_name", "score", "verdict", "strengths", "gaps")
+        profile = interview["profile"]
+        blueprint = interview.get("blueprint") or {}
         data = {
-            "candidate": {k: interview["profile"].get(k) for k in ("company", "role", "experience")},
+            "candidate": {
+                **{k: profile.get(k) for k in ("company", "role", "experience")},
+                "job_description": (profile.get("job_description") or "")[:MAX_JD_CHARS],
+                "resume": (profile.get("resume_text") or "")[:MAX_RESUME_CHARS],
+            },
+            "research": {
+                "summary": blueprint.get("summary", ""),
+                "conflicts": blueprint.get("conflicts", []),
+                "round_notes": [{"round": r.get("name"), "notes": r.get("notes", "")} for r in rounds],
+            },
             "planned_rounds": [{k: r.get(k) for k in ("id", "name", "type")} for r in rounds],
             "judged_rounds": [{k: getattr(s, k) for k in keep} for s in scores],
         }
@@ -352,11 +448,16 @@ class InterviewService:
         draft, result = run_structured(
             "Write the final report.\nDATA:\n" + json.dumps(data, ensure_ascii=False, indent=1), ReportDraft,
             system_prompt_file=REPORT_PROMPT_FILE, model=JUDGE.model, effort=JUDGE.effort, timeout_s=JUDGE_TIMEOUT_S,
+            warm_key=f"{interview_id}:report",
         )
         if result.cost_usd is not None:
             read, out = result.tokens()
             self._note(interview_id, f"Report call: {read / 1000:.1f}K tokens in, {out / 1000:.1f}K out, cost estimate ${result.cost_usd:.3f}")
-        return FinalReport(**draft.model_dump(), round_scores=scores)
+        overall = max(0, min(100, draft.overall_score))
+        return FinalReport(
+            **draft.model_dump(exclude={"overall_score", "verdict"}),
+            overall_score=overall, verdict=verdict_for(overall), round_scores=scores,
+        )
 
     def _grade_code(self, interview_id: str, step: OrchestratorStep, payload: dict[str, Any]) -> dict[str, Any]:
         problem = step.coding_problem
@@ -422,3 +523,23 @@ class InterviewService:
             "time_limit_min": section.time_limit_min,
             "per_question": graded,
         }
+
+
+def _checked_score(score: RoundScore, rtype: RoundType) -> RoundScore:
+    """Guardrail: the backend, not the model, does the arithmetic. Criteria get the rubric's exact names and
+    weights, criterion scores are clamped to 0-10, and the round score and verdict are recomputed."""
+    expected = rubric_for(rtype)
+    by_name = {item.criterion.strip().lower(): item for item in score.rubric}
+    if len(score.rubric) == len(expected) and all(c.lower() in by_name for c, _ in expected):
+        items = [
+            by_name[c.lower()].model_copy(update={"criterion": c, "weight": w, "score": max(0, min(10, by_name[c.lower()].score))})
+            for c, w in expected
+        ]
+    else:  # the judge renamed or dropped criteria: keep its items, normalise their weights
+        total = sum(max(0.0, i.weight) for i in score.rubric) or 1.0
+        items = [
+            i.model_copy(update={"weight": max(0.0, i.weight) / total, "score": max(0, min(10, i.score))})
+            for i in score.rubric
+        ]
+    value = max(0, min(100, round(sum(i.weight * i.score for i in items) * 10)))
+    return score.model_copy(update={"rubric": items, "score": value, "verdict": verdict_for(value)})

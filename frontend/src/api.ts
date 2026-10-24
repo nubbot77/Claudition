@@ -85,6 +85,8 @@ export const api = {
     request<{ status: string }>(`/interviews/${enc(id)}/events`, post(event)),
   retry: (id: string) => request<unknown>(`/interviews/${enc(id)}/retry`, post()),
   runCode: (body: CodeRunRequest) => request<CodeRunResult>("/code/run", post(body)),
+  parseResume: (filename: string, data_base64: string) =>
+    request<{ text: string; chars: number }>("/resume/parse", post({ filename, data_base64 })),
   ttsVoices: (signal?: AbortSignal) => request<KokoroVoice[]>("/tts/voices", { signal }),
   ttsWarmup: () => request<TtsStatus>("/tts/warmup", post()),
   synthesize,

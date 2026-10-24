@@ -160,11 +160,23 @@ function StepView({ id, state, roundEntries, progress, health, tts, busy, error,
         />
       );
     case "round_feedback": {
-      const score = step.round_score ?? state.round_scores.find((s) => s.round_id === step.round_id);
-      if (!score) return missing;
-      const total = state.blueprint?.rounds.length ?? 0;
-      const isLast = total > 0 && state.round_scores.length >= total;
-      return <RoundFeedback key={baseKey} {...common} step={step} score={score} isLast={isLast} onContinue={proceed} />;
+      const score = step.round_score ?? state.round_scores.find((s) => s.round_id === step.round_id) ?? null;
+      const scoring = !score && !!step.round_id && (state.scoring ?? []).includes(step.round_id);
+      if (!score && !scoring) return missing;
+      const ordered = [...(state.blueprint?.rounds ?? [])].sort((a, b) => a.order - b.order);
+      const round = ordered.find((r) => r.id === step.round_id);
+      const isLast = ordered.length > 0 && ordered[ordered.length - 1].id === step.round_id;
+      return (
+        <RoundFeedback
+          key={baseKey}
+          {...common}
+          step={step}
+          score={score}
+          roundName={round?.name ?? "This round"}
+          isLast={isLast}
+          onContinue={proceed}
+        />
+      );
     }
     case "final_report":
       if (!step.report) return <EndedView profile={state.profile} scores={state.round_scores} />;

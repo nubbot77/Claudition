@@ -1,6 +1,6 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, Check, Clock, LoaderCircle } from "lucide-react";
+import { ArrowRight, Check, Clock, FileUp, LoaderCircle } from "lucide-react";
 import { toast } from "sonner";
 import { FadeIn } from "@/components/motion";
 import { Button } from "@/components/ui/button";
@@ -132,6 +132,36 @@ export function HomePage() {
   useEffect(() => {
     writeLocal(DRAFT_KEY, JSON.stringify(form));
   }, [form]);
+
+  const resumeInput = useRef<HTMLInputElement>(null);
+  const [resumeLoading, setResumeLoading] = useState(false);
+  const [resumeFile, setResumeFile] = useState<string | null>(null);
+  const [resumeError, setResumeError] = useState<string | null>(null);
+
+  const onResumeFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = ""; // picking the same file again should re-import it
+    if (!file) return;
+    setResumeError(null);
+    if (file.size > 5 * 1024 * 1024) {
+      setResumeError("The file is larger than 5 MB.");
+      return;
+    }
+    setResumeLoading(true);
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      let binary = "";
+      for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      const { text, chars } = await api.parseResume(file.name, btoa(binary));
+      setField("resume_text", text);
+      setResumeFile(file.name);
+      toast.success(`Imported ${chars.toLocaleString()} characters from ${file.name}`);
+    } catch (e) {
+      setResumeError(errorMessage(e));
+    } finally {
+      setResumeLoading(false);
+    }
+  };
 
   const setField = (field: Field, value: string) => {
     setForm((f) => ({ ...f, [field]: value }));
@@ -289,9 +319,40 @@ export function HomePage() {
                 id="resume"
                 label="Resume"
                 optional
-                hint="Plain text is fine. Interviewers probe your projects and internships the way a real panel would."
+                hint="Upload a PDF, DOCX or TXT file, or paste plain text. Interviewers probe your projects and internships the way a real panel would."
+                error={resumeError ?? undefined}
                 counter={form.resume_text ? charCount(form.resume_text) : undefined}
               >
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    ref={resumeInput}
+                    type="file"
+                    accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain"
+                    className="sr-only"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    onChange={onResumeFile}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={resumeLoading}
+                    onClick={() => resumeInput.current?.click()}
+                  >
+                    {resumeLoading ? (
+                      <LoaderCircle data-icon="inline-start" className="motion-safe:animate-spin" />
+                    ) : (
+                      <FileUp data-icon="inline-start" />
+                    )}
+                    {resumeLoading ? "Reading file…" : "Upload resume"}
+                  </Button>
+                  {resumeFile && !resumeLoading && (
+                    <span className="truncate text-xs text-muted-foreground" title={resumeFile}>
+                      Imported from {resumeFile}. You can edit the text below.
+                    </span>
+                  )}
+                </div>
                 <Textarea
                   id="resume"
                   rows={6}

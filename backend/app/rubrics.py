@@ -86,3 +86,10 @@ CALIBRATION = {
 
 def rubric_for(round_type: RoundType) -> Rubric:
     return RUBRICS.get(round_type, GENERIC)
+
+
+VERDICT_BANDS = ((85, "strong_hire"), (70, "hire"), (60, "lean_hire"), (45, "lean_no_hire"), (0, "no_hire"))
+
+
+def verdict_for(score: int) -> str:
+    return next(verdict for floor, verdict in VERDICT_BANDS if score >= floor)

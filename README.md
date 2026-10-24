@@ -13,7 +13,8 @@ You enter a company, a role, your experience level, the job description and your
 - **Coding round:** Monaco editor; your code runs locally in a separate process with timeouts against example and hidden tests (Python and JavaScript, plus Java and C++ when `javac`/`g++` are installed). Hidden tests and MCQ answers never reach the browser.
 - **System design whiteboard:** an [Excalidraw](https://github.com/excalidraw/excalidraw) canvas (MIT) next to the conversation. When you answer, the board's components, arrows and notes are turned into a short text description, so the interviewer can probe and score your diagram.
 - **Voice:** answer by speaking (Web Speech API in Chrome/Edge) or typing. The interviewer speaks with Edge Natural voices or the open-source Kokoro neural TTS on your GPU, with automatic CPU fallback.
-- **Honest scoring:** per-round rubric scores with strengths, gaps and a model answer, plus a printable final report.
+- **Honest scoring:** a separate judge scores each round from that round's transcript, your submitted code, MCQ answers, whiteboard and (for background rounds) your JD and resume. The backend recomputes every score and verdict from the rubric, so the model's arithmetic can't drift. The next round can start while the judge works.
+- **Resume upload:** PDF, DOCX or TXT; the text is extracted locally and stays editable.
 - **Question budgets enforced by the server,** so rounds stay the length you set.
 
 ## How it works

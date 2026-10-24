@@ -2,6 +2,7 @@ import { ArrowRight, ChevronDown, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Skeleton } from "@/components/ui/skeleton";
 import { clampScore } from "../format";
 import { useSpeakOnMount, type Tts } from "../hooks/useSpeech";
 import type { PublicStep, RoundScore, RubricItem } from "../types";
@@ -14,7 +15,9 @@ import { ScoreDial } from "./ScoreDial";
 
 interface Props {
   step: PublicStep;
-  score: RoundScore;
+  /** null while the judge is still scoring the round in the background */
+  score: RoundScore | null;
+  roundName: string;
   tts: Tts;
   busy: boolean;
   error: string | null;
@@ -45,9 +48,55 @@ function Stat({ label, value, detail }: { label: string; value: string; detail?:
   );
 }
 
-export function RoundFeedback({ step, score, tts, busy, error, isLast, onContinue }: Props) {
+/** Shown while the judge scores the round: the closing line is already spoken, the scorecard fills in. */
+function ScoringPlaceholder({ roundName }: { roundName: string }) {
+  return (
+    <header className="overflow-hidden rounded-lg border border-border bg-card shadow-xs" aria-busy="true">
+      <div className="flex flex-col gap-5 p-5 sm:flex-row sm:items-center sm:gap-6 sm:p-6">
+        <div className="flex size-28 shrink-0 items-center justify-center rounded-full border-4 border-muted">
+          <Loader2 className="size-7 text-muted-foreground motion-safe:animate-spin" aria-hidden="true" />
+        </div>
+        <div className="flex min-w-0 flex-1 flex-col gap-2">
+          <p className="text-[13px] text-muted-foreground">Round scorecard</p>
+          <h2 id="feedback-title" className="text-2xl font-semibold tracking-tight text-balance text-primary">
+            {roundName}
+          </h2>
+          <p className="text-sm text-muted-foreground" role="status">
+            The judge is scoring your answers against the rubric. This usually takes 10–20 seconds.
+          </p>
+          <div className="flex flex-col gap-2 pt-1">
+            <Skeleton className="h-3 w-3/4" />
+            <Skeleton className="h-3 w-1/2" />
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+export function RoundFeedback({ step, score, roundName, tts, busy, error, isLast, onContinue }: Props) {
   useSpeakOnMount(tts, () => [{ text: step.speech_text }]);
   const [answerOpen, setAnswerOpen] = useState(false);
+
+  if (!score) {
+    return (
+      <article className="mx-auto flex w-full max-w-5xl flex-col gap-6" aria-labelledby="feedback-title">
+        <ScoringPlaceholder roundName={roundName} />
+        <InterviewerBubble name={step.interviewer_name} text={step.speech_text} tts={tts} />
+        <footer className="flex flex-col items-stretch gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-end">
+          <InlineError message={error} />
+          <p className="text-[13px] text-muted-foreground sm:mr-auto">
+            You can move on now; this round's score will also be in your final report.
+          </p>
+          <Button size="lg" variant="outline" onClick={onContinue} disabled={busy} className="sm:min-w-44">
+            {isLast ? "Continue to final report" : "Next round"}
+            <ArrowRight aria-hidden="true" />
+          </Button>
+        </footer>
+      </article>
+    );
+  }
+
   const range = extremes(score.rubric);
   const modelAnswer = score.model_answer.trim();
 

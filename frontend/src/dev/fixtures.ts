@@ -373,6 +373,7 @@ function roundOf(blueprint: CompanyBlueprint, id: string): BlueprintRound {
 function baseState(overrides: Partial<InterviewState> & Pick<InterviewState, "id" | "profile">): InterviewState {
   return {
     status: "ready",
+    scoring: [],
     progress: ["Session ready (claude-opus-5-5)", "Session cost estimate so far $0.418 (counts toward your plan's usage)"],
     error: null,
     step: null,

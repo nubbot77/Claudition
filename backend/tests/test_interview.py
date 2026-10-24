@@ -96,12 +96,45 @@ def test_state_hides_answers_and_hidden_tests(service):
     assert '"hidden_test_count": 1' in state
 
 
-def test_round_feedback_saves_score(service):
+def test_saved_score_fills_the_feedback_screen(service):
     score = RoundScore(round_id="r1", round_name="Coding", score=72, verdict="hire", rubric=[], strengths=[], gaps=[], model_answer="")
     interview = _seed(service, _step())
-    service._record_step("iv1", interview, _step(action="round_feedback", speech_text="Thanks.", round_score=score))
+    service._record_step("iv1", interview, _step(action="round_feedback", speech_text="Thanks.", round_id="r1"))
+    assert service.store.get_interview("iv1")["step"]["round_score"] is None  # closing line first
+    service._save_score("iv1", score)
     assert service.store.round_scores("iv1")[0]["score"] == 72
+    assert service.store.get_interview("iv1")["step"]["round_score"]["score"] == 72
     assert service.store.get_interview("iv1")["status"] == "ready"
+
+
+def _judged(items: list[tuple[str, float, int]], score: int, verdict: str) -> RoundScore:
+    rubric = [{"criterion": c, "weight": w, "score": s, "comment": ""} for c, w, s in items]
+    return RoundScore(round_id="r1", round_name="HR", score=score, verdict=verdict, rubric=rubric,
+                      strengths=[], gaps=[], model_answer="")
+
+
+def test_guardrail_recomputes_score_and_verdict_from_the_rubric():
+    from app.interview import _checked_score
+    from app.rubrics import rubric_for
+    from app.schemas import RoundType
+
+    hr = rubric_for(RoundType.hr)
+    # the judge says 95 strong_hire, but its own criterion scores (7, 6, 8, 12->10) and our weights give 75 -> hire
+    raw = [(c.upper(), 0.25, s) for (c, _), s in zip(hr, (7, 6, 8, 12))]
+    checked = _checked_score(_judged(raw, 95, "strong_hire"), RoundType.hr)
+    assert [i.criterion for i in checked.rubric] == [c for c, _ in hr]  # names and weights from the rubric
+    assert [i.weight for i in checked.rubric] == [w for _, w in hr]
+    assert checked.rubric[3].score == 10  # clamped to 0-10
+    assert checked.score == round(sum(w * s for (_, w), s in zip(hr, (7, 6, 8, 10))) * 10)
+    assert checked.verdict == "hire"
+
+
+def test_guardrail_normalises_weights_when_criteria_do_not_match():
+    from app.interview import _checked_score
+    from app.schemas import RoundType
+
+    checked = _checked_score(_judged([("Made up", 2.0, 10), ("Other", 2.0, 0)], 90, "strong_hire"), RoundType.hr)
+    assert checked.score == 50 and checked.verdict == "lean_no_hire"
 
 
 def test_blueprint_cached_for_next_interview(service):

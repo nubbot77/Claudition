@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .claude_runner import ClaudeError, auth_status, claude_executable, close_all_sessions
-from . import tts
+from . import resume, tts
 from .code_runner import RunReport, available_languages, run_tests
 from .interview import Busy, InterviewService, NotFound, render_system_prompt
 from .schemas import CodeRunIn, EventIn, InterviewProfile
@@ -107,6 +107,21 @@ async def run_code(body: CodeRunIn) -> RunReport:
         return await asyncio.to_thread(run_tests, body.language, body.code, body.tests)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
+
+
+class ResumeIn(BaseModel):
+    filename: str
+    data_base64: str
+
+
+@app.post("/api/resume/parse")
+async def parse_resume(body: ResumeIn) -> dict[str, Any]:
+    """Text from an uploaded PDF/DOCX/TXT resume. The browser sends the file base64-encoded in JSON."""
+    try:
+        text = await asyncio.to_thread(resume.extract, body.filename, body.data_base64)
+    except resume.ResumeError as exc:
+        raise HTTPException(422, str(exc))
+    return {"text": text, "chars": len(text)}
 
 
 class TtsIn(BaseModel):

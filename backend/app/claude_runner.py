@@ -287,8 +287,9 @@ class PersistentSession:
     model changes; the conversation (and each model's prompt cache) survives the switch.
     """
 
-    def __init__(self, session_id: str, system_prompt_file: Path, schema: str) -> None:
+    def __init__(self, session_id: str, system_prompt_file: Path, schema: str, persist: bool = True) -> None:
         self.session_id = session_id
+        self.persist = persist  # False: a throwaway process (pre-started judge/report call), nothing saved
         self.system_prompt_file = system_prompt_file
         self.schema = schema
         self.proc: subprocess.Popen[str] | None = None
@@ -306,7 +307,7 @@ class PersistentSession:
         WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
         cmd = build_command(
             schema=self.schema, session_id=self.session_id, resume=True, system_prompt_file=self.system_prompt_file,
-            model=model, effort=effort, tools=ROUND_TOOLS, stream_input=True,
+            model=model, effort=effort, tools=ROUND_TOOLS, stream_input=True, persist=self.persist,
         )
         flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
         self.proc = subprocess.Popen(
@@ -399,6 +400,44 @@ class PersistentSession:
 _SESSIONS: dict[str, PersistentSession] = {}
 _SESSIONS_LOCK = threading.Lock()
 
+# Pre-started single-use processes for the judge and report calls. Starting `claude` costs ~4-5 s, so a
+# process is launched when a round begins and sits idle until the round is judged. Each one serves exactly
+# one call and is then closed: no conversation is ever shared between two judgements.
+_WARM: dict[str, tuple[tuple[str, str, str, str], PersistentSession]] = {}
+_WARM_LOCK = threading.Lock()
+
+
+def prewarm(key: str, *, schema: str, system_prompt_file: Path, model: str, effort: str) -> None:
+    """Start a process for one later run_structured(..., warm_key=key) call. Best effort: failures are logged."""
+    discard_prewarmed(key)
+    try:
+        session = PersistentSession("", system_prompt_file, schema, persist=False)
+        session._start(model, effort)
+    except Exception as exc:  # noqa: BLE001 - a cold start later is fine
+        log.warning("Could not pre-start %s: %s", key, exc)
+        return
+    with _WARM_LOCK:
+        _WARM[key] = ((schema, str(system_prompt_file), model, effort), session)
+
+
+def discard_prewarmed(prefix: str) -> None:
+    with _WARM_LOCK:
+        keys = [k for k in _WARM if k.startswith(prefix)]
+        doomed = [_WARM.pop(k)[1] for k in keys]
+    for session in doomed:
+        session.close()
+
+
+def _take_prewarmed(key: str, config: tuple[str, str, str, str]) -> PersistentSession | None:
+    with _WARM_LOCK:
+        entry = _WARM.pop(key, None)
+    if entry is None:
+        return None
+    if entry[0] != config or not entry[1].alive():
+        entry[1].close()
+        return None
+    return entry[1]
+
 
 def close_session(session_id: str) -> None:
     with _SESSIONS_LOCK:
@@ -410,6 +449,7 @@ def close_session(session_id: str) -> None:
 def close_all_sessions() -> None:
     for session_id in list(_SESSIONS):
         close_session(session_id)
+    discard_prewarmed("")
 
 
 # ---------- orchestrator ----------
@@ -432,17 +472,26 @@ M = TypeVar("M", bound=BaseModel)
 
 def run_structured(
     prompt: str, model_type: type[M], *, system_prompt_file: Path, model: str, effort: str,
-    timeout_s: float = 300, schema: str | None = None,
+    timeout_s: float = 300, schema: str | None = None, warm_key: str | None = None,
 ) -> tuple[M, RunResult]:
-    """A one-off call with no saved session (judge, report writer). Retries once on a missing or invalid result."""
+    """A one-off call with no saved session (judge, report writer). Uses the process pre-started under
+    `warm_key` when there is one with the same configuration. Retries once on a missing or invalid result."""
     schema = schema or json_schema_for(model_type)
+    warm = _take_prewarmed(warm_key, (schema, str(system_prompt_file), model, effort)) if warm_key else None
     last_error = ""
     for attempt in range(2):
         text = prompt if attempt == 0 else f"{prompt}\n\n{_RETRY_NUDGE}"
-        result = run_claude(
-            text, schema=schema, session_id="", resume=False, system_prompt_file=system_prompt_file,
-            model=model, effort=effort, tools=ROUND_TOOLS, timeout_s=timeout_s, persist=False,
-        )
+        if warm is not None:
+            try:
+                result = _result_from(warm._turn(text, timeout_s, None), {})
+            finally:
+                warm.close()
+                warm = None
+        else:
+            result = run_claude(
+                text, schema=schema, session_id="", resume=False, system_prompt_file=system_prompt_file,
+                model=model, effort=effort, tools=ROUND_TOOLS, timeout_s=timeout_s, persist=False,
+            )
         if result.structured is None:
             last_error = "no structured_output in result"
             continue
