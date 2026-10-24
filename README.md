@@ -6,7 +6,7 @@
 
 AI mock interviews built from a company's real, researched hiring process, running locally on your own Claude Code subscription.
 
-[Quick start](#quick-start) · [How it works](#how-it-works) · [Screenshots](#screenshots) · [Guardrails](#guardrails) · [License](#license)
+[Quick start](#quick-start) · [Requirements](#hardware-requirements) · [How it works](#how-it-works) · [Screenshots](#screenshots) · [Guardrails](#guardrails) · [License](#license)
 
 ![Claudition home page](docs/screenshots/home-light.png)
 
@@ -175,7 +175,7 @@ The start script checks the tools above and signs you in to Claude Code if neede
 
 **Optional extras:**
 
-- **Neural voice:** `start.cmd -Voice` / `./start.sh --voice` downloads about 1.9 GB once. It runs on an NVIDIA GPU (capped at 1 GB of GPU memory) or on the CPU.
+- **Neural voice:** `start.cmd -Voice` / `./start.sh --voice`. It runs on an NVIDIA GPU or on the CPU; see [Neural voice on CPU](#neural-voice-on-cpu).
 - **More coding languages:** Java and C++ appear automatically when `javac`/`java` and `g++` are on your PATH.
 - **Other models:** set `CLAUDITION_JUDGE_MODEL` / `CLAUDITION_INTERVIEWER_MODEL`, for example `claude-sonnet-5-5` if your plan has no Opus.
 - **Very long sessions:** they are compacted in place at 400K tokens of context (`CLAUDITION_COMPACT_TOKENS`). Scoring doesn't depend on the summary, because the judge reads from the database.
@@ -191,6 +191,56 @@ cd frontend && npm install && npm run dev  # hot-reload UI on http://localhost:5
 
 The design preview with every screen is at `http://localhost:5173/__preview`.
 </details>
+
+## Hardware requirements
+
+All the AI work (research, interviewing, judging) runs in Anthropic's cloud through your Claude Code login, so your computer only runs the web app, your code tests and, optionally, the voice. Any recent laptop works.
+
+| | Minimum | Recommended |
+|---|---|---|
+| **OS** | Windows 10/11, macOS, or Linux (64-bit) | |
+| **CPU** | 2 cores | 4+ cores (faster code tests, smooth whiteboard) |
+| **RAM** | 4 GB | 8 GB |
+| **Disk** | ~0.5 GB (app ~350 MB + build) | ~4 GB with the neural voice |
+| **GPU** | Not needed | Any NVIDIA GPU with 2 GB+ VRAM, for the fastest neural voice |
+| **Browser** | Any modern browser (typing only) | Chrome or Edge (voice answers, Edge Natural voices) |
+| **Network** | Always online (Claude, web research, browser speech recognition) | |
+| **Microphone** | Optional | Any headset for voice answers |
+
+**Which voice for which machine:**
+
+| Your machine | Use | What it costs you |
+|---|---|---|
+| Any laptop, no download | **Browser voice** (default, the "Automatic" setting picks Edge Natural voices) | Nothing extra |
+| 4+ CPU cores, no NVIDIA GPU | **Neural voice on CPU** | ~3.1 GB disk, ~0.5–0.9 GB RAM, ~3.5 s to generate an 8 s line* |
+| NVIDIA GPU (2 GB+ VRAM) | **Neural voice on GPU** | ~3.1 GB disk, ~1.3 GB VRAM, ~0.5 s per line* |
+
+*Measured on a Ryzen 5 5600H (CPU, 4 threads) and an RTX 3050 Laptop 4 GB (GPU). The disk size covers the Python packages (~2.8 GB, mostly GPU runtime libraries) plus the voice model (~340 MB). Slower CPUs take proportionally longer; the browser voice has no delay at all.
+
+### Neural voice on CPU
+
+You don't need a graphics card for the neural (Kokoro) voice.
+
+1. **No NVIDIA GPU?** Just install the voice. When no usable GPU is found, it switches to the CPU on its own:
+
+   | Windows | macOS / Linux |
+   |---|---|
+   | `start.cmd -Voice` | `./start.sh --voice` |
+
+2. **Have an NVIDIA GPU but want the voice on the CPU anyway** (to keep the GPU free for something else)? Set `TTS_DEVICE=cpu` before starting:
+
+   | Shell | Command |
+   |---|---|
+   | Windows (Command Prompt) | `set TTS_DEVICE=cpu` then `start.cmd -Voice` |
+   | Windows (PowerShell) | `$env:TTS_DEVICE = "cpu"; .\start.cmd -Voice` |
+   | macOS / Linux | `TTS_DEVICE=cpu ./start.sh --voice` |
+
+3. **Check it:** the **System status** card on the home page shows **"Neural voice ready on CPU"** after the first line is spoken. In the interview, open the voice menu and pick **Neural (Kokoro)**, or leave it on **Automatic**.
+
+**Good to know:**
+- The CPU voice uses 4 threads and one request at a time, so it never takes over the whole machine.
+- On Windows and Linux the install still downloads the GPU libraries (~2.8 GB), because they also contain the CPU engine. On macOS only the CPU engine is installed.
+- If lines take too long to start on an older CPU, switch the voice menu back to **Automatic**. The browser's voices start instantly.
 
 ## Guardrails
 
@@ -214,6 +264,8 @@ The design preview with every screen is at `http://localhost:5173/__preview`.
 | `start.ps1` cannot be loaded | Use `start.cmd`, which runs it with a one-time execution-policy bypass. |
 | Port 8000 in use | `.\start.ps1 -Port 8010` or `PORT=8010 ./start.sh` |
 | Microphone doesn't work | Use Chrome or Edge and allow microphone access for `127.0.0.1`. |
+| Neural voice is slow to start each line | It's running on the CPU. Use a GPU, or switch the voice to **Automatic** for instant browser voices. |
+| Status card says "Browser voice" | The neural voice isn't installed. Run `start.cmd -Voice` / `./start.sh --voice`. |
 
 ## Usage and terms
 
