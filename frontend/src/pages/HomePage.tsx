@@ -227,7 +227,7 @@ export function HomePage() {
       <FadeIn className="flex flex-col gap-3 pt-4 pb-4 sm:pt-8 sm:pb-6">
         <p className="font-mono text-[11px] tracking-[0.14em] text-muted-foreground uppercase">Mock interview</p>
         <h1 className="max-w-[22ch] text-4xl font-normal text-balance text-primary sm:text-5xl">
-          Practise the interview <em className="text-muted-foreground">this</em> company actually runs.
+          Prepare for the interview you'll <em className="text-muted-foreground">actually</em> face.
         </h1>
         <p className="max-w-[60ch] text-[15px] leading-7 text-pretty text-muted-foreground">
           Tell the interviewer where you're applying. It researches that company's current hiring process, shows you the

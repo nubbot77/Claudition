@@ -2,7 +2,7 @@
 
 # Claudition
 
-**Practise the interview *this* company actually runs.**
+**Prepare for the interview you'll *actually* face.**
 
 AI mock interviews built from a company's real, researched hiring process, running locally on your own Claude Code subscription.
 
