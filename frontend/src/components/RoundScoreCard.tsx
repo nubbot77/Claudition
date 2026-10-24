@@ -1,4 +1,4 @@
-import { ChevronDown, CircleAlert, CircleCheck } from "lucide-react";
+import { ChevronDown, CircleAlert, CircleCheck } from "@/lib/icons";
 import { useState } from "react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";

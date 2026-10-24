@@ -13,7 +13,7 @@ import {
   Search,
   SquareTerminal,
   type LucideIcon,
-} from "lucide-react";
+} from "@/lib/icons";
 import { FadeIn, baseTransition } from "@/components/motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";

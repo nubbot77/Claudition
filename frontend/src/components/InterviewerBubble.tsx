@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { RotateCcw, Square } from "lucide-react";
+import { RotateCcw, Square } from "@/lib/icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SpeakingBars } from "@/components/motion";
@@ -120,13 +120,13 @@ export function InterviewerBubble({
         <div
           aria-hidden="true"
           data-speaking={live || undefined}
-          className="relative flex aspect-[4/3] w-full items-center justify-center rounded-md bg-brand-navy outline-2 outline-offset-2 outline-transparent transition-[outline-color] duration-200 data-speaking:outline-accent"
+          className="relative flex aspect-[4/3] w-full items-center justify-center rounded-md border border-border bg-muted outline-2 outline-offset-2 outline-transparent transition-[outline-color] duration-300 data-speaking:outline-foreground/40"
         >
-          <span className="text-2xl font-semibold tracking-tight text-brand-navy-foreground select-none">
+          <span className="font-heading text-3xl text-foreground select-none">
             {initials(person.name)}
           </span>
-          <span className="absolute bottom-2 left-2 flex h-5 items-center rounded-sm bg-black/25 px-1.5 text-white">
-            <SpeakingBars active={live} bars={4} className="h-3 text-white" />
+          <span className="absolute bottom-2 left-2 flex h-5 items-center rounded-full bg-card px-1.5 text-foreground ring-1 ring-border">
+            <SpeakingBars active={live} bars={4} className="h-3 text-foreground" />
           </span>
         </div>
       </div>

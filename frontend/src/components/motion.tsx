@@ -18,7 +18,7 @@ import {
 } from "motion/react";
 import { cn } from "@/lib/utils";
 
-export const EASE_OUT: [number, number, number, number] = [0.22, 1, 0.36, 1];
+export const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
 export const DURATION = { fast: 0.15, base: 0.2, slow: 0.25 } as const;
 export const MAX_STAGGER = 0.03;
 
@@ -41,13 +41,13 @@ type FadeInProps = HTMLMotionProps<"div"> & {
   y?: number;
 };
 
-/** Fades and slides its content in once, on mount. */
-export function FadeIn({ delay = 0, y = 6, transition, ...props }: FadeInProps) {
+/** Fades and slides its content in once, on mount (600 ms, a 10 px rise). */
+export function FadeIn({ delay = 0, y = 10, transition, ...props }: FadeInProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ ...baseTransition, delay, ...transition }}
+      transition={{ duration: 0.6, ease: EASE_OUT, delay, ...transition }}
       {...props}
     />
   );

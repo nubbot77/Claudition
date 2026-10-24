@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
-import { ArrowRight, Flag, Users } from "lucide-react";
+import { ArrowRight, Flag, Users } from "@/lib/icons";
 import { SpeakingBars } from "@/components/motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

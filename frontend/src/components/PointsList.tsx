@@ -1,4 +1,4 @@
-import { CircleAlert, CircleCheck } from "lucide-react";
+import { CircleAlert, CircleCheck } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 interface Props {

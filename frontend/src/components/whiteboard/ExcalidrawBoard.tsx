@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Excalidraw } from "@excalidraw/excalidraw";
 import "@excalidraw/excalidraw/index.css";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useTheme } from "@/lib/theme";
 import { boardSignature, type BoardElement } from "./board";
 
 export interface BoardProps {
@@ -31,7 +31,7 @@ function save(key: string, elements: readonly BoardElement[]): void {
 
 /** Excalidraw canvas (MIT). Loaded lazily: the library is large and only system design rounds need it. */
 export default function ExcalidrawBoard({ storageKey, onChange }: BoardProps) {
-  const dark = useMediaQuery("(prefers-color-scheme: dark)");
+  const dark = useTheme().resolved === "dark";
   const initial = useMemo(() => load(storageKey), [storageKey]);
   const saveTimer = useRef<number | undefined>(undefined);
   const lastSignature = useRef(boardSignature(initial));

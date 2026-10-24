@@ -12,16 +12,21 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/inter";
-@import "@fontsource-variable/jetbrains-mono";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+@import "@fontsource-variable/newsreader";
+
+/* Dark mode is a class on <html> (Light / Dark / System toggle in the app bar; see lib/theme.tsx). */
+@custom-variant dark (&:where(.dark, .dark *));
 
 /* ------------------------------------------------------------------------------------------------
- * Theme -> utilities. `dark:` uses Tailwind's default (prefers-color-scheme), so it follows the OS.
+ * Theme -> utilities. `dark:` follows the `.dark` class that ThemeProvider sets on <html>.
  * ---------------------------------------------------------------------------------------------- */
 @theme inline {
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-heading: var(--font-sans);
-  --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* editorial serif for page titles and scores; UI text stays in Geist */
+  --font-heading: "Newsreader Variable", "Iowan Old Style", Georgia, serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", "Cascadia Code", Consolas, monospace;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -79,137 +84,148 @@
 }
 
 @theme {
-  /* Slate-tinted, very soft elevation. Cards use shadow-xs/shadow-sm; overlays use shadow-md/lg. */
-  --shadow-xs: 0 1px 2px 0 rgb(15 23 42 / 0.04);
-  --shadow-sm: 0 1px 2px 0 rgb(15 23 42 / 0.05), 0 1px 3px 0 rgb(15 23 42 / 0.03);
-  --shadow-md: 0 4px 12px -2px rgb(15 23 42 / 0.08), 0 2px 4px -2px rgb(15 23 42 / 0.05);
-  --shadow-lg: 0 12px 32px -8px rgb(15 23 42 / 0.16), 0 4px 8px -4px rgb(15 23 42 / 0.06);
+  /* Flat by design: hairline borders do the separating. Shadows only lift overlays (menus, dialogs). */
+  --shadow-xs: 0 0 0 0 transparent;
+  --shadow-sm: 0 1px 2px 0 rgb(17 17 17 / 0.03);
+  --shadow-md: 0 8px 24px -10px rgb(17 17 17 / 0.10), 0 2px 6px -2px rgb(17 17 17 / 0.04);
+  --shadow-lg: 0 20px 48px -16px rgb(17 17 17 / 0.16), 0 4px 10px -4px rgb(17 17 17 / 0.05);
+  --shadow-lift: 0 2px 8px 0 rgb(17 17 17 / 0.04);
 
-  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --animate-rise: rise 0.6s var(--ease-out-soft) both;
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 }
 
 /* ------------------------------------------------------------------------------------------------
- * Tokens. Light by default; dark follows the OS.
+ * Tokens: warm monochrome. Colour is reserved for meaning (scores, verdicts, states) as muted pastels.
  * ---------------------------------------------------------------------------------------------- */
 :root {
   color-scheme: light;
 
   --radius: 0.5rem;
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "JetBrains Mono Variable", ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
 
-  --background: #f8fafc; /* slate-50 */
-  --foreground: #0f172a; /* slate-900 */
+  --background: #fbfbfa; /* warm bone */
+  --foreground: #232321; /* warm charcoal, never pure black */
   --card: #ffffff;
-  --card-foreground: #0f172a;
+  --card-foreground: #232321;
   --popover: #ffffff;
-  --popover-foreground: #0f172a;
+  --popover-foreground: #232321;
 
-  /* Brand navy: wordmark, headings that carry the brand, navy chips. */
-  --primary: #0f2a4a;
+  /* Ink: primary buttons, wordmark, headings that carry the brand. */
+  --primary: #111111;
   --primary-foreground: #ffffff;
-  --brand-navy: #0f2a4a;
+  --brand-navy: #111111;
   --brand-navy-foreground: #ffffff;
 
-  /* Action blue: primary buttons, links, selection, progress, focus. */
-  --accent: #2563eb; /* blue-600 */
+  /* Actions are ink too; the "soft" accent is the one cool pastel (info, follow-ups, selection). */
+  --accent: #111111;
   --accent-foreground: #ffffff;
-  --accent-hover: #1d4ed8; /* blue-700 */
-  --accent-soft: #eff6ff; /* blue-50 */
-  --accent-soft-foreground: #1d4ed8;
+  --accent-hover: #333333;
+  --accent-soft: #e9f2f8;
+  --accent-soft-foreground: #1f6c9f;
 
-  --secondary: #f1f5f9; /* slate-100 */
-  --secondary-foreground: #0f172a;
-  --muted: #f1f5f9;
-  --muted-foreground: #475569; /* slate-600 */
+  --secondary: #f3f2ef;
+  --secondary-foreground: #232321;
+  --muted: #f3f2ef;
+  --muted-foreground: #787774;
 
-  --success: #059669; /* emerald-600 */
+  --success: #346538;
   --success-foreground: #ffffff;
-  --success-soft: #ecfdf5;
-  --success-soft-foreground: #047857;
-  --warning: #d97706; /* amber-600 */
+  --success-soft: #edf3ec;
+  --success-soft-foreground: #346538;
+  --warning: #956400;
   --warning-foreground: #ffffff;
-  --warning-soft: #fffbeb;
-  --warning-soft-foreground: #b45309;
-  --destructive: #e11d48; /* rose-600 */
+  --warning-soft: #fbf3db;
+  --warning-soft-foreground: #8a5d00;
+  --destructive: #9f2f2d;
   --destructive-foreground: #ffffff;
-  --destructive-soft: #fff1f2;
-  --destructive-soft-foreground: #be123c;
+  --destructive-soft: #fdebec;
+  --destructive-soft-foreground: #9f2f2d;
 
-  --border: #e2e8f0; /* slate-200 */
-  --input: #cbd5e1; /* slate-300: form controls get a slightly firmer edge */
-  --ring: #2563eb;
+  --border: #eaeae7;
+  --input: #e0dfdb;
+  --ring: #8f8e8a;
 
-  --chart-1: #2563eb;
-  --chart-2: #0f2a4a;
-  --chart-3: #059669;
-  --chart-4: #d97706;
-  --chart-5: #64748b;
+  --chart-1: #232321;
+  --chart-2: #787774;
+  --chart-3: #346538;
+  --chart-4: #956400;
+  --chart-5: #b9b8b3;
 
-  /* Group-discussion speakers (text and dots on white). */
-  --gd-1: #2563eb;
-  --gd-2: #c2410c;
-  --gd-3: #7c3aed;
-  --gd-4: #0f766e;
-  --gd-5: #be185d;
+  /* Group-discussion speakers: muted, distinguishable inks. */
+  --gd-1: #1f6c9f;
+  --gd-2: #a0522d;
+  --gd-3: #6b4fa0;
+  --gd-4: #346538;
+  --gd-5: #9f2f5e;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
+:root.dark {
+  color-scheme: dark;
 
-    --background: #020617; /* slate-950 */
-    --foreground: #f1f5f9;
-    --card: #0f172a; /* slate-900 */
-    --card-foreground: #f1f5f9;
-    --popover: #0f172a;
-    --popover-foreground: #f1f5f9;
+  --background: #161615;
+  --foreground: #e8e7e4;
+  --card: #1c1c1b;
+  --card-foreground: #e8e7e4;
+  --popover: #21211f;
+  --popover-foreground: #e8e7e4;
 
-    --primary: #e2e8f0;
-    --primary-foreground: #0f172a;
-    --brand-navy: #173459;
-    --brand-navy-foreground: #ffffff;
+  --primary: #ededea;
+  --primary-foreground: #161615;
+  --brand-navy: #ededea;
+  --brand-navy-foreground: #161615;
 
-    --accent: #3b82f6; /* blue-500 */
-    --accent-foreground: #ffffff;
-    --accent-hover: #60a5fa;
-    --accent-soft: #172554;
-    --accent-soft-foreground: #93c5fd;
+  --accent: #ededea;
+  --accent-foreground: #161615;
+  --accent-hover: #ffffff;
+  --accent-soft: #1b2730;
+  --accent-soft-foreground: #8ec5ea;
 
-    --secondary: #1e293b; /* slate-800 */
-    --secondary-foreground: #f1f5f9;
-    --muted: #1e293b;
-    --muted-foreground: #94a3b8; /* slate-400 */
+  --secondary: #242422;
+  --secondary-foreground: #e8e7e4;
+  --muted: #242422;
+  --muted-foreground: #9b9a96;
 
-    --success: #10b981;
-    --success-foreground: #022c22;
-    --success-soft: #022c22;
-    --success-soft-foreground: #6ee7b7;
-    --warning: #f59e0b;
-    --warning-foreground: #451a03;
-    --warning-soft: #451a03;
-    --warning-soft-foreground: #fcd34d;
-    --destructive: #f43f5e;
-    --destructive-foreground: #ffffff;
-    --destructive-soft: #4c0519;
-    --destructive-soft-foreground: #fda4af;
+  --success: #8cc792;
+  --success-foreground: #161615;
+  --success-soft: #1c2a1e;
+  --success-soft-foreground: #9fd3a4;
+  --warning: #d9a641;
+  --warning-foreground: #161615;
+  --warning-soft: #2b2514;
+  --warning-soft-foreground: #e6c06f;
+  --destructive: #e2706c;
+  --destructive-foreground: #161615;
+  --destructive-soft: #301d1c;
+  --destructive-soft-foreground: #f0a19d;
 
-    --border: #1e293b; /* slate-800 */
-    --input: #334155; /* slate-700 */
-    --ring: #3b82f6;
+  --border: #2b2b29;
+  --input: #383836;
+  --ring: #7a7975;
 
-    --chart-1: #3b82f6;
-    --chart-2: #94a3b8;
-    --chart-3: #10b981;
-    --chart-4: #f59e0b;
-    --chart-5: #64748b;
+  --chart-1: #e8e7e4;
+  --chart-2: #9b9a96;
+  --chart-3: #8cc792;
+  --chart-4: #d9a641;
+  --chart-5: #55544f;
 
-    --gd-1: #60a5fa;
-    --gd-2: #fb923c;
-    --gd-3: #a78bfa;
-    --gd-4: #2dd4bf;
-    --gd-5: #f472b6;
-  }
+  --gd-1: #8ec5ea;
+  --gd-2: #e0a37f;
+  --gd-3: #b9a3e3;
+  --gd-4: #9fd3a4;
+  --gd-5: #e89ab9;
+
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
 }
 
 /* ------------------------------------------------------------------------------------------------
@@ -219,12 +235,12 @@
 :root {
   --bg: var(--background);
   --surface: var(--card);
-  --surface-2: #f8fafc;
+  --surface-2: #f7f6f3;
   --bg-sunken: var(--muted);
   --border-strong: var(--input);
   --text: var(--foreground);
   --text-muted: var(--muted-foreground);
-  --text-faint: #94a3b8;
+  --text-faint: #a5a49f;
   --accent-ink: var(--accent-foreground);
   --focus: var(--ring);
   --good: var(--success);
@@ -235,15 +251,15 @@
   --low-soft: var(--destructive-soft);
   --info-soft: var(--accent-soft);
   --code-bg: var(--muted);
-  --font-serif: var(--font-sans);
+  --font-serif: var(--font-heading);
   --shadow-1: 0 1px 2px 0 rgb(15 23 42 / 0.05), 0 1px 3px 0 rgb(15 23 42 / 0.03);
   --shadow-2: 0 12px 32px -8px rgb(15 23 42 / 0.16), 0 4px 8px -4px rgb(15 23 42 / 0.06);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --surface-2: #131c2e;
-    --text-faint: #64748b;
+:root.dark {
+  & {
+    --surface-2: #1f1f1d;
+    --text-faint: #6f6e6a;
     --shadow-1: 0 1px 2px 0 rgb(0 0 0 / 0.4);
     --shadow-2: 0 16px 40px -12px rgb(0 0 0 / 0.7);
   }
@@ -265,8 +281,28 @@
 
   body {
     @apply bg-background text-sm text-foreground antialiased;
-    font-feature-settings: "cv11";
+    line-height: 1.6;
     text-rendering: optimizeLegibility;
+  }
+
+  /* Page titles: editorial serif, tight tracking. */
+  h1,
+  .font-heading {
+    font-family: var(--font-heading);
+    font-optical-sizing: auto;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+
+  /* Quiet colour transitions everywhere, except during the one-frame theme swap. */
+  :root:not(.theme-switching) :where(a, button, input, textarea, [role="tab"], [data-slot="card"]) {
+    transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+    transition-duration: 150ms;
+    transition-timing-function: var(--ease-out-soft);
+  }
+
+  kbd {
+    font-family: var(--font-mono);
   }
 
   /* Plain prose links (no class) look like links; styled anchors (buttons, nav) opt out by having a class. */
@@ -304,5 +340,54 @@
 
   @media (width >= 64rem) {
     padding-inline: 2rem;
+  }
+}
+
+/* ------------------------------------------------------------------------------------------------
+ * Ambient light: one warm radial glow drifting very slowly behind the page (opacity ~3%).
+ * Fixed layer, transform-only animation; disabled for reduced motion and in print.
+ * ---------------------------------------------------------------------------------------------- */
+.ambient-light::before {
+  content: "";
+  position: absolute;
+  width: 70vmax;
+  height: 70vmax;
+  left: -10vmax;
+  top: -30vmax;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(196 160 112 / 0.09), transparent 62%);
+  animation: ambient-drift 28s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+:root.dark .ambient-light::before {
+  background: radial-gradient(circle, rgb(232 200 150 / 0.045), transparent 62%);
+}
+
+@keyframes ambient-drift {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(30vmax, 18vmax, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-light::before {
+    animation: none;
+  }
+}
+
+/* Interactive cards lift a hair on hover. */
+@utility hover-lift {
+  transition:
+    box-shadow 200ms var(--ease-out-soft),
+    transform 200ms var(--ease-out-soft),
+    border-color 200ms var(--ease-out-soft);
+
+  &:hover {
+    box-shadow: var(--shadow-lift);
+    transform: translateY(-1px);
   }
 }

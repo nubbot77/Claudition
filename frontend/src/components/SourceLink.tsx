@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ExternalLink as ExternalLinkIcon, Link2 } from "lucide-react";
+import { ExternalLink as ExternalLinkIcon, Link2 } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { hostOf, safeHref } from "../format";
 import type { Source } from "../types";

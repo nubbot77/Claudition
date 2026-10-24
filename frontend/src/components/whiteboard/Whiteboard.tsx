@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { PenTool } from "lucide-react";
+import { PenTool } from "@/lib/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { BoardProps } from "./ExcalidrawBoard";
 

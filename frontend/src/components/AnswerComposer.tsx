@@ -1,5 +1,5 @@
 import { useCallback, useMemo, type Dispatch, type KeyboardEvent, type ReactNode, type SetStateAction } from "react";
-import { Info, LoaderCircle, Mic, Square } from "lucide-react";
+import { Info, LoaderCircle, Mic, Square } from "@/lib/icons";
 import { FadePresence } from "@/components/motion";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";

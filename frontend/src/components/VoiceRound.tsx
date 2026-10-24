@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { CornerDownRight } from "lucide-react";
+import { CornerDownRight } from "@/lib/icons";
 import { normalizeText } from "../format";
 import { useSpeakOnMount, type Tts } from "../hooks/useSpeech";
 import { useSessionState, useStartTime } from "../lib/storage";

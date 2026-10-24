@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { CircleAlert, CircleDashed, RotateCcw, SearchX, WifiOff } from "lucide-react";
+import { CircleAlert, CircleDashed, RotateCcw, SearchX, WifiOff } from "@/lib/icons";
 import { StepTransition } from "@/components/motion";
 import { Button } from "@/components/ui/button";
 import { BlueprintView } from "../components/BlueprintView";

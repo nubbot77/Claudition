@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { LogOut, Volume2, VolumeX } from "lucide-react";
+import { LogOut, Volume2, VolumeX } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";

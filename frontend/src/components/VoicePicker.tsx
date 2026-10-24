@@ -1,5 +1,5 @@
 import { useId, useState, type ChangeEvent, type ReactNode } from "react";
-import { AudioLines, ChevronDown, Play, Square } from "lucide-react";
+import { AudioLines, ChevronDown, Play, Square } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";

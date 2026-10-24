@@ -1,4 +1,4 @@
-import { CircleCheck } from "lucide-react";
+import { CircleCheck } from "@/lib/icons";
 import { useId, useMemo } from "react";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";

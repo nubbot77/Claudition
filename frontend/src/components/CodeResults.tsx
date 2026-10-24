@@ -1,4 +1,4 @@
-import { ChevronRight, CircleCheck, CircleX, Clock, FlaskConical, TriangleAlert } from "lucide-react";
+import { ChevronRight, CircleCheck, CircleX, Clock, FlaskConical, TriangleAlert } from "@/lib/icons";
 import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";

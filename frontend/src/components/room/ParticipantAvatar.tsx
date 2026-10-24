@@ -13,8 +13,8 @@ const SIZE: Record<AvatarSize, string> = {
 };
 
 const TONE: Record<AvatarTone, string> = {
-  interviewer: "bg-brand-navy text-brand-navy-foreground",
-  candidate: "bg-accent-soft text-accent-soft-foreground ring-1 ring-inset ring-accent/20",
+  interviewer: "bg-muted font-heading text-foreground ring-1 ring-inset ring-border",
+  candidate: "bg-accent-soft text-accent-soft-foreground ring-1 ring-inset ring-accent-soft-foreground/15",
   speaker:
     "bg-[color-mix(in_oklab,var(--speaker)_13%,var(--card))] text-(--speaker) ring-1 ring-inset ring-[color-mix(in_oklab,var(--speaker)_28%,transparent)]",
   neutral: "bg-muted text-muted-foreground",

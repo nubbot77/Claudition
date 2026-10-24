@@ -1,4 +1,4 @@
-import { CircleCheck, CircleMinus, CircleX } from "lucide-react";
+import { CircleCheck, CircleMinus, CircleX } from "@/lib/icons";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { capitalize, verdictLabel } from "../format";

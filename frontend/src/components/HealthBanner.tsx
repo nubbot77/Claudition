@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CircleAlert, CircleCheck, CircleDashed, CircleX, LoaderCircle, RotateCw, TriangleAlert } from "lucide-react";
+import { CircleAlert, CircleCheck, CircleDashed, CircleX, LoaderCircle, RotateCw, TriangleAlert } from "@/lib/icons";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

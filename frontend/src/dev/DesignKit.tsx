@@ -1,6 +1,6 @@
 /** Dev-only reference sheet: tokens, type scale, tuned shadcn components and motion helpers. /__preview?screen=kit */
 import { useState } from "react";
-import { ArrowRight, Mic, Play, RotateCcw, Send } from "lucide-react";
+import { ArrowRight, Mic, Play, RotateCcw, Send } from "@/lib/icons";
 import { toast } from "sonner";
 import { CountUp, FadeIn, SpeakingBars, Stagger, StaggerItem, StepTransition } from "@/components/motion";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";

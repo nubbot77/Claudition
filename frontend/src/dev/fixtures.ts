@@ -144,8 +144,8 @@ export const PREVIEW_HEALTH: Health = {
   },
 };
 
-const DELOITTE_ID = "cc4064fb-cdb8-4f70-af0b-095c2ce6fb68";
-const AMAZON_ID = "4044bfc7-2cf6-4c98-927a-63b9ca7999e0";
+const DELOITTE_ID = "00000000-0000-4000-8000-000000000001";
+const AMAZON_ID = "00000000-0000-4000-8000-000000000002";
 
 export function previewInterviewList(now = Date.now()): InterviewSummary[] {
   return [

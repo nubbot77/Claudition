@@ -1,6 +1,6 @@
 import { useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { CircleAlert } from "lucide-react";
+import { CircleAlert } from "@/lib/icons";
 import { DURATION, EASE_OUT, baseTransition } from "@/components/motion";
 import { cn } from "@/lib/utils";
 

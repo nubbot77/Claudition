@@ -5,11 +5,11 @@ import { Slot } from "radix-ui"
 import { withRef } from "@/lib/with-ref"
 
 /**
- * Square-cornered status chips. Soft variants (accent, success, warning, destructive) carry verdicts,
+ * Small uppercase pills in muted pastels. Soft variants (accent, success, warning, destructive) carry verdicts,
  * difficulty, confidence and test results; `default` is navy, `secondary`/`outline` are neutral.
  */
 const badgeVariants = cva(
-  "group/badge inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-sm border border-transparent font-medium whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 [&>svg]:pointer-events-none",
+  "group/badge inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border border-transparent font-medium tracking-[0.06em] uppercase whitespace-nowrap transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 [&>svg]:pointer-events-none",
   {
     variants: {
       variant: {
@@ -24,8 +24,8 @@ const badgeVariants = cva(
         link: "text-accent underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-5 px-1.5 text-xs [&>svg]:size-3",
-        lg: "h-6 px-2 text-[13px] [&>svg]:size-3.5",
+        default: "h-5 px-2 text-[10.5px] [&>svg]:size-3",
+        lg: "h-6 px-2.5 text-[11.5px] [&>svg]:size-3.5",
       },
     },
     defaultVariants: {

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { ArrowRight, Clock, Layers, Link2, LoaderCircle, TriangleAlert } from "lucide-react";
+import { ArrowRight, Clock, Layers, Link2, LoaderCircle, TriangleAlert } from "@/lib/icons";
 import { FadeIn } from "@/components/motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

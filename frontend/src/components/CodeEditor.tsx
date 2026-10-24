@@ -1,9 +1,10 @@
 import Editor, { loader, type BeforeMount, type OnMount } from "@monaco-editor/react";
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "@/lib/icons";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { useTheme } from "../lib/theme";
 
 type LoadState = "loading" | "slow" | "ready" | "failed";
 
@@ -92,7 +93,7 @@ function EditorSkeleton({ slow, onPlain }: { slow: boolean; onPlain: () => void 
 }
 
 export function CodeEditor({ language, value, label, onChange, wordWrap = false, onRun }: Props) {
-  const dark = useMediaQuery("(prefers-color-scheme: dark)");
+  const dark = useTheme().resolved === "dark";
   const narrow = useMediaQuery("(max-width: 639px)");
   const [load, setLoad] = useState<LoadState>("loading");
   const [plain, setPlain] = useState(false);

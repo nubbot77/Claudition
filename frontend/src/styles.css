@@ -43,7 +43,7 @@
   --sticky-top: 112px;
 }
 
-@media (prefers-color-scheme: dark) {
+@media not all {
   :root {
     color-scheme: dark;
     --bg: #111413;
@@ -597,7 +597,7 @@ kbd {
   color: #fff;
 }
 
-@media (prefers-color-scheme: dark) {
+:where(.dark) {
   .btn.danger,
   .btn.danger:hover:not(:disabled) {
     color: #1a0d0b;

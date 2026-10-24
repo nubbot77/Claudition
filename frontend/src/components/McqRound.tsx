@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Eraser, Flag, Loader2, Send } from "lucide-react";
+import { ArrowLeft, ArrowRight, Eraser, Flag, Loader2, Send } from "@/lib/icons";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import {
   AlertDialog,

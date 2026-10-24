@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Clock } from "lucide-react";
+import { Clock } from "@/lib/icons";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
@@ -64,7 +64,7 @@ export function RoundItem({ round, index, last }: { round: BlueprintRound; index
       )}
       <span
         aria-hidden="true"
-        className="relative z-[1] mt-4 flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-navy font-mono text-xs font-medium text-brand-navy-foreground tabular-nums"
+        className="relative z-[1] mt-4 flex size-7 shrink-0 items-center justify-center rounded-full border border-border bg-card font-mono text-xs font-medium text-foreground tabular-nums"
       >
         {index + 1}
       </span>

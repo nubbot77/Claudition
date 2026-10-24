@@ -1,6 +1,7 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Brand } from "@/components/Brand";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 interface AppBarSlots {
   center: HTMLElement | null;
@@ -20,14 +21,15 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <AppBarContext.Provider value={slots}>
-      <div className="flex min-h-dvh flex-col bg-background text-foreground">
+      <div className="relative isolate flex min-h-dvh flex-col bg-background text-foreground">
+        <div aria-hidden="true" className="ambient-light pointer-events-none fixed inset-0 -z-10 overflow-hidden print:hidden" />
         <a
           href="#main"
           className="sr-only rounded-md bg-accent px-3 py-2 text-sm font-medium text-accent-foreground focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50"
         >
           Skip to content
         </a>
-        <header className="sticky top-0 z-40 border-b border-border bg-card print:hidden">
+        <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-md print:hidden">
           <div className="page-container flex h-14 items-center gap-4">
             <Brand />
             <div
@@ -35,6 +37,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               className="flex min-w-0 flex-1 items-center gap-3 border-l border-border pl-4 empty:border-0 empty:pl-0"
             />
             <div ref={setEnd} className="flex shrink-0 items-center gap-2" />
+            <ThemeToggle className="shrink-0" />
           </div>
         </header>
         <div className="flex flex-1 flex-col">{children}</div>

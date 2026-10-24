@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { CircleHelp, LoaderCircle, TriangleAlert } from "lucide-react";
+import { CircleHelp, LoaderCircle, TriangleAlert } from "@/lib/icons";
 import {
   AlertDialog,
   AlertDialogCancel,

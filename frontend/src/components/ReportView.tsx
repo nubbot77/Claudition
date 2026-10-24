@@ -1,4 +1,4 @@
-import { Info, Printer, Plus } from "lucide-react";
+import { Info, Printer, Plus } from "@/lib/icons";
 import { useReducedMotion } from "motion/react";
 import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";

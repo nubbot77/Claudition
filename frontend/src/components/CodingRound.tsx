@@ -11,7 +11,7 @@ import {
   Send,
   TriangleAlert,
   WrapText,
-} from "lucide-react";
+} from "@/lib/icons";
 import {
   useCallback,
   useEffect,

@@ -55,7 +55,7 @@ export function ScoreDial({ score, size = 120, label = "Score", className }: Pro
         )}
       </svg>
       <span className="absolute inset-0 flex flex-col items-center justify-center" aria-hidden="true">
-        <span className="leading-none font-semibold tracking-tight text-foreground" style={{ fontSize: Math.round(size * 0.3) }}>
+        <span className="font-heading leading-none font-normal text-foreground tabular-nums" style={{ fontSize: Math.round(size * 0.34) }}>
           <CountUp value={value} duration={0.8} />
         </span>
         <span className="mt-1 text-xs text-muted-foreground">of 100</span>

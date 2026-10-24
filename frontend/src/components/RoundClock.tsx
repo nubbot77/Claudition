@@ -1,4 +1,4 @@
-import { Clock3, TimerOff } from "lucide-react";
+import { Clock3, TimerOff } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";

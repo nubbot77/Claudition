@@ -1,6 +1,6 @@
 import type * as React from "react"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
-import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
+import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "@/lib/icons"
 
 /** Follows the OS colour scheme, like the rest of the app. Use `toast()` from "sonner" to show one. */
 const Toaster = ({ ...props }: ToasterProps) => {

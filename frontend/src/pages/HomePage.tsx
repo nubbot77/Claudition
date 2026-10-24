@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowRight, Check, Clock, FileUp, LoaderCircle } from "lucide-react";
+import { ArrowRight, Check, Clock, FileUp, LoaderCircle } from "@/lib/icons";
 import { toast } from "sonner";
 import { FadeIn } from "@/components/motion";
 import { Button } from "@/components/ui/button";
@@ -223,12 +223,15 @@ export function HomePage() {
     : [...EXPERIENCE_OPTIONS, { value: form.experience, label: experienceLabel(form.experience) }];
 
   return (
-    <main id="main" className="page-container flex flex-col gap-6 pt-8 pb-16 sm:pt-10">
-      <FadeIn className="flex flex-col gap-1.5">
-        <h1 className="text-2xl leading-8 font-semibold tracking-tight text-primary">New mock interview</h1>
-        <p className="max-w-[68ch] text-sm leading-6 text-pretty text-muted-foreground">
-          Tell the interviewer where you're interviewing. It researches that company's current hiring process, shows
-          you the plan, then runs each round with you and scores it.
+    <main id="main" className="page-container flex flex-col gap-6 pt-8 pb-24 sm:pt-10">
+      <FadeIn className="flex flex-col gap-3 pt-4 pb-4 sm:pt-8 sm:pb-6">
+        <p className="font-mono text-[11px] tracking-[0.14em] text-muted-foreground uppercase">Mock interview</p>
+        <h1 className="max-w-[22ch] text-4xl font-normal text-balance text-primary sm:text-5xl">
+          Practise the interview <em className="text-muted-foreground">this</em> company actually runs.
+        </h1>
+        <p className="max-w-[60ch] text-[15px] leading-7 text-pretty text-muted-foreground">
+          Tell the interviewer where you're applying. It researches that company's current hiring process, shows you the
+          plan, then runs each round with you and scores it.
         </p>
       </FadeIn>
 

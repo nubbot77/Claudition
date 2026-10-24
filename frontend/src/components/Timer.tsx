@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Clock3 } from "lucide-react";
+import { Clock3 } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { formatClock } from "../format";
 import { useNow } from "../hooks/useNow";

@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw } from "@/lib/icons";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
