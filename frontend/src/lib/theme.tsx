@@ -16,6 +16,9 @@ interface ThemeState {
 const ThemeContext = createContext<ThemeState>({ preference: "system", resolved: "light", setPreference: () => {} });
 
 function stored(): ThemePreference {
+  // ?theme=light|dark forces a theme for this page load only (screenshots, sharing a link); not saved
+  const forced = new URLSearchParams(window.location.search).get("theme");
+  if (forced === "light" || forced === "dark") return forced;
   const value = readLocal(THEME_KEY);
   return value === "light" || value === "dark" ? value : "system";
 }

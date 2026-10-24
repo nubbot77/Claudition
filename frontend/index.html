@@ -9,7 +9,7 @@
     <script>
       // apply the saved theme before first paint (same rule as lib/theme.tsx)
       try {
-        var t = localStorage.getItem("claudition-theme");
+        var t = new URLSearchParams(location.search).get("theme") || localStorage.getItem("claudition-theme");
         var dark = t === "dark" || (t !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
         document.documentElement.classList.toggle("dark", dark);
         document.documentElement.style.colorScheme = dark ? "dark" : "light";

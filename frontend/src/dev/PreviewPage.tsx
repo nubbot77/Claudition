@@ -240,6 +240,7 @@ export default function PreviewPage() {
   const busyFlag = params.get("busy") === "1";
   const errorFlag = params.get("error") === "1";
   const speakingFlag = params.get("speaking") === "1";
+  const shotMode = params.get("shot") === "1"; // hide this toolbar, e.g. for README screenshots
 
   const setParam = useCallback(
     (key: string, value: string | null) => {
@@ -296,7 +297,7 @@ export default function PreviewPage() {
 
   return (
     <>
-      <div className="border-b border-dashed border-border bg-muted/50" data-preview-bar="">
+      <div className="border-b border-dashed border-border bg-muted/50" data-preview-bar="" hidden={shotMode}>
         <div className="page-container flex min-h-11 flex-wrap items-center gap-x-3 gap-y-2 py-1.5">
           <Badge variant="warning">Dev preview</Badge>
           <Select value={screen} onValueChange={(value) => setParam("screen", value)}>
