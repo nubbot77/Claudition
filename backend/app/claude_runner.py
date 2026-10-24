@@ -8,6 +8,7 @@ Rules that keep this on the subscription and not the API bill:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -22,6 +23,8 @@ from pydantic import BaseModel, ValidationError
 
 from .schemas import OrchestratorStep
 
+log = logging.getLogger(__name__)
+
 APP_DIR = Path(__file__).parent
 DATA_DIR = APP_DIR.parent / "data"
 WORKSPACE_DIR = DATA_DIR / "workspace"
@@ -32,6 +35,19 @@ ORCHESTRATOR_EFFORT = "medium"
 ORCHESTRATOR_TOOLS = "Agent,WebSearch,WebFetch,Read"
 RESEARCH_TOOLS = "Agent,WebSearch,WebFetch"
 ROUND_TOOLS = ""  # rounds need no tools: only the StructuredOutput tool that --json-schema adds
+
+# Compact the interview conversation once one request's context reaches this many tokens (the models
+# have a 1M window). The summary keeps what later turns need; the backend re-sends round scores for
+# the final report, so nothing graded depends on the summary alone.
+COMPACT_AT_TOKENS = int(os.environ.get("CLAUDITION_COMPACT_TOKENS", "400000"))
+COMPACT_INSTRUCTIONS = (
+    "This is a mock interview. Preserve exactly: the CompanyBlueprint (every round id, type, order, duration, "
+    "difficulty, question_budget); every round_feedback round_score verbatim (score, verdict, rubric items, "
+    "strengths, gaps); the current round id, the interviewer's name, each question asked in the current round "
+    "and a short summary of each answer; for a coding round the problem statement and the latest test results; "
+    "for a group discussion the participants, their stances and the candidate's contributions. Drop research "
+    "notes, source lists and word-for-word transcripts of finished rounds."
+)
 
 _STRIPPED_ENV = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "CLAUDECODE")
 
@@ -270,6 +286,8 @@ class PersistentSession:
         self.effort: str | None = None
         self._lock = threading.Lock()
         self._stderr: deque[str] = deque(maxlen=40)
+        self.context_tokens = 0  # size of the last request's context, from its usage
+        self.compactions = 0
 
     def alive(self) -> bool:
         return self.proc is not None and self.proc.poll() is None
@@ -314,6 +332,12 @@ class PersistentSession:
                     continue
                 if event.get("type") == "result":
                     return event
+                if event.get("type") == "assistant":
+                    usage = event.get("message", {}).get("usage") or {}
+                    size = sum(usage.get(k, 0) for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
+                    self.context_tokens = size or self.context_tokens
+                elif event.get("type") == "system" and event.get("subtype") == "compact_boundary":
+                    self.context_tokens = (event.get("compact_metadata") or {}).get("post_tokens", 0)
                 if on_progress and (msg := describe_stream_event(event)):
                     on_progress(msg)
         except OSError:
@@ -337,7 +361,18 @@ class PersistentSession:
             if effort != self.effort:
                 self._turn(f"/effort {effort}", 60, None)
                 self.effort = effort
+            if self.context_tokens >= COMPACT_AT_TOKENS:
+                self.compact(on_progress)
             return _result_from(self._turn(prompt, timeout_s, on_progress), {})
+
+    def compact(self, on_progress: ProgressFn | None = None) -> None:
+        """Summarise the conversation in place (`/compact`). Caller holds the lock; the process stays up."""
+        before = self.context_tokens
+        if on_progress:
+            on_progress(f"Compacting interview memory ({before // 1000}K tokens)")
+        self._turn(f"/compact {COMPACT_INSTRUCTIONS}", 300, None)
+        self.compactions += 1
+        log.info("Session %s compacted: %d -> %d tokens", self.session_id, before, self.context_tokens)
 
     def close(self) -> None:
         proc, self.proc = self.proc, None

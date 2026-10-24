@@ -212,3 +212,64 @@ def test_public_step_hides_mcq_answers() -> None:
     question = data["mcq_section"]["questions"][0]
     assert "answer_index" not in question and "explanation" not in question
     assert question["options"] == ["3", "4"] and question["id"] == "q1"
+
+
+# ---------- PersistentSession compaction ----------
+
+
+class _FakeProc:
+    """Stands in for the claude process: each turn's stdout is scripted as a list of events."""
+
+    def __init__(self, turns: list[list[dict[str, Any]]]) -> None:
+        import io
+
+        self.stdin = io.StringIO()
+        self._lines = iter([json.dumps(e) + "\n" for turn in turns for e in turn])
+        self.stdout = self._lines
+
+    def poll(self) -> None:
+        return None
+
+
+def _usage(inp: int, read: int, write: int) -> dict[str, Any]:
+    return {"type": "assistant", "message": {"content": [], "usage": {
+        "input_tokens": inp, "cache_read_input_tokens": read, "cache_creation_input_tokens": write}}}
+
+
+def _session(turns: list[list[dict[str, Any]]]) -> claude_runner.PersistentSession:
+    session = claude_runner.PersistentSession("sess", Path("p.md"), "{}")
+    session.proc = _FakeProc(turns)  # type: ignore[assignment]
+    session.model, session.effort = "m", "e"
+    return session
+
+
+def test_turn_tracks_context_size_and_compaction() -> None:
+    result = {"type": "result", "subtype": "success"}
+    boundary = {"type": "system", "subtype": "compact_boundary", "compact_metadata": {"post_tokens": 1268}}
+    session = _session([[_usage(2, 5000, 1000), result], [boundary, result]])
+    session._turn("hello", 5, None)
+    assert session.context_tokens == 6002
+    session._turn("/compact keep scores", 5, None)
+    assert session.context_tokens == 1268
+
+
+@pytest.mark.parametrize(("context", "compacts"), [(399_999, False), (400_000, True)])
+def test_ask_compacts_once_context_reaches_threshold(
+    monkeypatch: pytest.MonkeyPatch, context: int, compacts: bool,
+) -> None:
+    monkeypatch.setattr(claude_runner, "COMPACT_AT_TOKENS", 400_000)
+    monkeypatch.setattr(claude_runner, "_result_from", lambda event, _: event)
+    session = _session([])
+    sent: list[str] = []
+
+    def fake_turn(text: str, timeout_s: float, on_progress: Any) -> dict[str, Any]:
+        sent.append(text)
+        if text.startswith("/compact"):
+            session.context_tokens = 3000
+        return {"type": "result"}
+
+    monkeypatch.setattr(session, "_turn", fake_turn)
+    session.context_tokens = context
+    session.ask("EVENT: candidate_answer", model="m", effort="e", timeout_s=5)
+    assert [t.startswith("/compact") for t in sent] == ([True, False] if compacts else [False])
+    assert session.compactions == int(compacts)

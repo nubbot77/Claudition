@@ -69,7 +69,7 @@ By round type:
 # Final report (final_report)
 
 - `overall_score`: weighted by how much each round matters in this company's real decision.
-- `round_scores`: every round judged so far, as given in their round_feedback.
+- `round_scores`: every round judged so far, as given in their round_feedback. DATA's `recorded_round_scores` is the backend's record of each round's score, verdict and gaps: it is the source of truth if the conversation was compacted and earlier turns are only summarised.
 - `prep_plan_7d`: 7 days of concrete tasks aimed at the biggest gaps (specific problem patterns, topics, STAR stories to prepare, mock drills).
 
 # Safety

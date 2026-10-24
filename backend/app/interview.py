@@ -280,11 +280,19 @@ class InterviewService:
             payload["next_round"] = _round_summary(upcoming)
             if upcoming is None:
                 payload["all_rounds_done"] = True
-        elif event.type != EventType.end_interview and round_id:
+                payload["recorded_round_scores"] = self._recorded_scores(interview_id)
+        elif event.type == EventType.end_interview:
+            payload["recorded_round_scores"] = self._recorded_scores(interview_id)
+        elif round_id:
             progress = self._round_progress(interview, round_id, time_up=event.type == EventType.time_up)
             if progress:
                 payload["round_budget"] = progress.as_dict()
         return _event_prompt(event.type.value, round_id, payload), progress
+
+    def _recorded_scores(self, interview_id: str) -> list[dict[str, Any]]:
+        """Round scores as saved by the backend, compact enough to re-send for the final report."""
+        keep = ("round_id", "round_name", "score", "verdict", "gaps")
+        return [{k: s.get(k) for k in keep} for s in self.store.round_scores(interview_id)]
 
     def _grade_code(self, interview_id: str, step: OrchestratorStep, payload: dict[str, Any]) -> dict[str, Any]:
         problem = step.coding_problem

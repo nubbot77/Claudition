@@ -86,6 +86,8 @@ CLAUDITION_INTERVIEWER_MODEL=claude-sonnet-5-5  # round setup and questions
 
 (On Windows PowerShell: `$env:CLAUDITION_JUDGE_MODEL = "claude-sonnet-5-5"`.)
 
+Long interviews are compacted automatically: once one request's context reaches 400K tokens, the conversation is summarised in place (keeping the blueprint, every round score and the current round). Change the threshold with `CLAUDITION_COMPACT_TOKENS`.
+
 ### Manual setup (developers)
 
 ```bash
