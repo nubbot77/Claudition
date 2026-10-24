@@ -1,5 +1,5 @@
 /*
- * Interview Room design system (Tailwind v4 + shadcn tokens).
+ * Claudition design system (Tailwind v4 + shadcn tokens).
  *
  * Cascade layers, lowest to highest priority:
  *   theme -> base (Tailwind preflight + our base) -> legacy (old styles.css) -> components -> utilities

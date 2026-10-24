@@ -1,5 +1,5 @@
 [project]
-name = "interview-platform-backend"
+name = "claudition-backend"
 version = "0.1.0"
 description = "Local AI mock-interview backend driven by Claude Code"
 requires-python = ">=3.11"
@@ -7,8 +7,14 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
     "pydantic>=2.9",
-    # Interviewer voice (Kokoro TTS). GPU build of ONNX Runtime plus the CUDA 12 / cuDNN 9
-    # runtime DLLs as pip wheels, so no system CUDA install is needed. CPU fallback is automatic.
+]
+
+[project.optional-dependencies]
+# Neural interviewer voice (Kokoro TTS), installed with `uv sync --extra voice` (~1.9 GB).
+# GPU build of ONNX Runtime plus the CUDA 12 / cuDNN 9 runtime DLLs as pip wheels, so no system
+# CUDA install is needed; it also runs on the CPU when no NVIDIA GPU is present.
+# Without this extra the app uses the browser's voices.
+voice = [
     "kokoro-onnx>=0.6,<0.7",
     "onnxruntime-gpu>=1.24,<1.27; sys_platform != 'darwin'",
     "nvidia-cuda-runtime-cu12>=12.4,<13; sys_platform != 'darwin'",

@@ -266,11 +266,11 @@ export function InterviewView({
     : notFound
       ? "Interview not found"
       : loadError
-        ? "Interview Room"
+        ? "Claudition"
         : "Loading interview…";
 
   useEffect(() => {
-    document.title = state ? `${state.profile.company} · ${state.profile.role} — Interview Room` : "Interview Room";
+    document.title = state ? `${state.profile.company} · ${state.profile.role} — Claudition` : "Claudition";
   }, [state]);
 
   // Announce each new interviewer line once the step has rendered (a live region that already exists).

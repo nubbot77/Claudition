@@ -81,7 +81,7 @@ export function DesignKit() {
       <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-semibold tracking-tight">Design kit</h1>
         <p className="text-muted-foreground">
-          Tokens, type and components as tuned for Interview Room. Dark mode follows the OS.
+          Tokens, type and components as tuned for Claudition. Dark mode follows the OS.
         </p>
       </header>
 

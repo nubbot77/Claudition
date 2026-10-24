@@ -46,7 +46,8 @@ function problemOf({ health, error, loading }: Props): Problem | null {
       title: "The interview server isn't reachable",
       body: (
         <>
-          {detail}Start the backend on <Code>http://127.0.0.1:8000</Code>, then reload this page.
+          {detail}Start it with <Code>start.cmd</Code> (Windows) or <Code>./start.sh</Code> (macOS/Linux), then reload
+          this page.
         </>
       ),
     };
@@ -57,7 +58,8 @@ function problemOf({ health, error, loading }: Props): Problem | null {
       title: "Claude Code CLI not found",
       body: (
         <>
-          Install Claude Code and make sure the <Code>claude</Code> command is on your PATH, then restart the backend.
+          Install it with <Code>npm install -g @anthropic-ai/claude-code</Code>, make sure the <Code>claude</Code>{" "}
+          command is on your PATH, then restart Claudition.
         </>
       ),
     };
@@ -68,8 +70,8 @@ function problemOf({ health, error, loading }: Props): Problem | null {
       title: "Claude Code isn't signed in",
       body: (
         <>
-          Run <Code>claude</Code> in a terminal and sign in, then reload this page. Interviews can't start until you
-          do.
+          Run <Code>claude auth login</Code> in a terminal and sign in with your Claude Pro or Max account, then reload
+          this page. Interviews run on your own subscription and can't start until you do.
         </>
       ),
     };
@@ -173,15 +175,17 @@ function rowsOf({ health, error, loading }: Props): StatusRow[] {
 
   const tts = health.tts;
   if (tts) {
-    if (tts.error) {
-      rows.push({ label: "Interviewer voice", state: "warn", value: "Browser voice (fallback)", detail: tts.error });
-    } else if (!tts.available) {
+    if (!tts.available) {
+      // not installed is a note (the voice is optional); a voice that failed to load is a warning
+      const notInstalled = !tts.error || /not installed|missing/i.test(tts.error);
       rows.push({
         label: "Interviewer voice",
-        state: "info",
+        state: notInstalled ? "info" : "warn",
         value: "Browser voice",
-        detail: "Neural voice isn't installed",
+        detail: notInstalled ? "For the neural voice, run start with -Voice (Windows) or --voice" : tts.error!,
       });
+    } else if (tts.error) {
+      rows.push({ label: "Interviewer voice", state: "warn", value: "Neural voice on CPU (fallback)", detail: tts.error });
     } else {
       const device = tts.device === "cuda" ? "GPU" : tts.device === "cpu" ? "CPU" : "";
       rows.push({

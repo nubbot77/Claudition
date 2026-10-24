@@ -16,7 +16,7 @@ createRoot(root).render(
   <StrictMode>
     <MotionConfig reducedMotion="user" transition={baseTransition}>
       <TooltipProvider delayDuration={300}>
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+        <BrowserRouter>
           <App />
         </BrowserRouter>
         <Toaster />

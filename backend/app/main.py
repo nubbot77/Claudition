@@ -1,13 +1,20 @@
-"""FastAPI entry point. Run from backend/:  uv run uvicorn app.main:app --port 8000"""
+"""FastAPI entry point. Run from backend/:  uv run uvicorn app.main:app --port 8000
+
+When frontend/dist exists (npm run build), the built UI is served from the same port, so
+http://127.0.0.1:8000 is the whole app. In development the Vite server on :5173 proxies /api here.
+"""
 
 from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any, AsyncIterator
 
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from .claude_runner import ClaudeError, auth_status, claude_executable, close_all_sessions
@@ -29,7 +36,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     close_all_sessions()
 
 
-app = FastAPI(title="Mock Interview Platform", lifespan=lifespan)
+app = FastAPI(title="Claudition", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -130,3 +137,21 @@ async def tts_warmup() -> dict[str, Any]:
     """Start loading the voice model in the background so the first line isn't delayed."""
     tts.warm_up_in_background()
     return tts.tts_status()
+
+
+# ---------- built UI (single-port mode) ----------
+# Registered last so the catch-all route never shadows an /api route.
+
+FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+
+if (FRONTEND_DIST / "index.html").is_file():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="assets")
+
+    @app.get("/{path:path}", include_in_schema=False)
+    async def spa(path: str) -> FileResponse:
+        if path.startswith("api/"):
+            raise HTTPException(404, "Not found")
+        file = (FRONTEND_DIST / path).resolve()
+        if path and file.is_file() and file.is_relative_to(FRONTEND_DIST):
+            return FileResponse(file)
+        return FileResponse(FRONTEND_DIST / "index.html")  # client-side routes like /interview/<id>

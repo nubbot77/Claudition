@@ -50,6 +50,48 @@ wheels = [
 ]
 
 [[package]]
+name = "claudition-backend"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "fastapi" },
+    { name = "pydantic" },
+    { name = "uvicorn", extra = ["standard"] },
+]
+
+[package.optional-dependencies]
+voice = [
+    { name = "kokoro-onnx" },
+    { name = "nvidia-cublas-cu12", marker = "sys_platform != 'darwin'" },
+    { name = "nvidia-cuda-runtime-cu12", marker = "sys_platform != 'darwin'" },
+    { name = "nvidia-cudnn-cu12", marker = "sys_platform != 'darwin'" },
+    { name = "nvidia-cufft-cu12", marker = "sys_platform != 'darwin'" },
+    { name = "onnxruntime-gpu", marker = "sys_platform != 'darwin'" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fastapi", specifier = ">=0.115" },
+    { name = "kokoro-onnx", marker = "extra == 'voice'", specifier = ">=0.6,<0.7" },
+    { name = "nvidia-cublas-cu12", marker = "sys_platform != 'darwin' and extra == 'voice'", specifier = ">=12.4,<13" },
+    { name = "nvidia-cuda-runtime-cu12", marker = "sys_platform != 'darwin' and extra == 'voice'", specifier = ">=12.4,<13" },
+    { name = "nvidia-cudnn-cu12", marker = "sys_platform != 'darwin' and extra == 'voice'", specifier = ">=9.1,<10" },
+    { name = "nvidia-cufft-cu12", marker = "sys_platform != 'darwin' and extra == 'voice'", specifier = ">=11.2,<12" },
+    { name = "onnxruntime-gpu", marker = "sys_platform != 'darwin' and extra == 'voice'", specifier = ">=1.24,<1.27" },
+    { name = "pydantic", specifier = ">=2.9" },
+    { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
+]
+provides-extras = ["voice"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pytest", specifier = ">=8" }]
+
+[[package]]
 name = "click"
 version = "8.5.0"
 source = { registry = "https://pypi.org/simple" }
@@ -248,43 +290,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/01/e1/2069291243c926a2f
 wheels = [
     { url = "https://files.pythonhosted.org/packages/56/43/4ca9e49d27a1fcf6bece6f6aec0ea46bb9112489b93d4b688fb415457bdb/iniconfig-2.3.1-py3-none-any.whl", hash = "sha256:9121e2c1fdb355232495be3194c8dfe87ccc2d5dee45947b78e68f499790d7a7", size = 7552, upload-time = "2026-10-06T22:48:36.959Z" },
 ]
-
-[[package]]
-name = "interview-platform-backend"
-version = "0.1.0"
-source = { virtual = "." }
-dependencies = [
-    { name = "fastapi" },
-    { name = "kokoro-onnx" },
-    { name = "nvidia-cublas-cu12", marker = "sys_platform != 'darwin'" },
-    { name = "nvidia-cuda-runtime-cu12", marker = "sys_platform != 'darwin'" },
-    { name = "nvidia-cudnn-cu12", marker = "sys_platform != 'darwin'" },
-    { name = "nvidia-cufft-cu12", marker = "sys_platform != 'darwin'" },
-    { name = "onnxruntime-gpu", marker = "sys_platform != 'darwin'" },
-    { name = "pydantic" },
-    { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "fastapi", specifier = ">=0.115" },
-    { name = "kokoro-onnx", specifier = ">=0.6,<0.7" },
-    { name = "nvidia-cublas-cu12", marker = "sys_platform != 'darwin'", specifier = ">=12.4,<13" },
-    { name = "nvidia-cuda-runtime-cu12", marker = "sys_platform != 'darwin'", specifier = ">=12.4,<13" },
-    { name = "nvidia-cudnn-cu12", marker = "sys_platform != 'darwin'", specifier = ">=9.1,<10" },
-    { name = "nvidia-cufft-cu12", marker = "sys_platform != 'darwin'", specifier = ">=11.2,<12" },
-    { name = "onnxruntime-gpu", marker = "sys_platform != 'darwin'", specifier = ">=1.24,<1.27" },
-    { name = "pydantic", specifier = ">=2.9" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
-]
-
-[package.metadata.requires-dev]
-dev = [{ name = "pytest", specifier = ">=8" }]
 
 [[package]]
 name = "joblib"

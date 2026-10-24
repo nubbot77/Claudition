@@ -1,11 +1,12 @@
 """Which model answers which turn.
 
 Opus judges (research, round scores, final report); Sonnet runs the conversation. Asking a question
-needs speed, not deep reasoning, and Opus output is 10x the price of Sonnet's per token.
+needs speed, not deep reasoning, and Opus costs twice as much as Sonnet per token.
 """
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 
 from .budget import RoundProgress
@@ -19,9 +20,14 @@ class Route:
     role: str  # shown in the progress log
 
 
-JUDGE = Route("claude-opus-5-5", "medium", "judge")
-CONTENT = Route("claude-sonnet-5-5", "medium", "round setup")  # MCQs, coding problems + hidden tests
-FAST = Route("claude-sonnet-5-5", "low", "interviewer")
+# Override with environment variables, e.g. CLAUDITION_JUDGE_MODEL=claude-sonnet-5-5 on a plan
+# without Opus access, or to stretch usage limits.
+JUDGE_MODEL = os.environ.get("CLAUDITION_JUDGE_MODEL", "claude-opus-5-5")
+INTERVIEWER_MODEL = os.environ.get("CLAUDITION_INTERVIEWER_MODEL", "claude-sonnet-5-5")
+
+JUDGE = Route(JUDGE_MODEL, "medium", "judge")
+CONTENT = Route(INTERVIEWER_MODEL, "medium", "round setup")  # MCQs, coding problems + hidden tests
+FAST = Route(INTERVIEWER_MODEL, "low", "interviewer")
 
 JUDGE_ACTIONS = {Action.round_feedback, Action.final_report}
 

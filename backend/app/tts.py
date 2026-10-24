@@ -146,7 +146,7 @@ def _missing() -> str | None:
     """Why TTS can't work at all, without importing anything heavy."""
     for module in ("onnxruntime", "kokoro_onnx", "numpy"):
         if importlib.util.find_spec(module) is None:
-            return f"Python package '{module}' is not installed (run `uv sync` in backend/)."
+            return f"Python package '{module}' is not installed (run `uv sync --extra voice` in backend/)."
     for path in (MODEL_FILE, VOICES_FILE):
         if not path.is_file():
             return f"Model file {path.name} is missing. Run `uv run python scripts/download_tts_models.py` in backend/."

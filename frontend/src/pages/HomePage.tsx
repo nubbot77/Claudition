@@ -126,7 +126,7 @@ export function HomePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    document.title = "Interview Room";
+    document.title = "Claudition";
   }, []);
 
   useEffect(() => {
