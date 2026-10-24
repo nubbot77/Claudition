@@ -169,4 +169,6 @@ if (FRONTEND_DIST / "index.html").is_file():
         file = (FRONTEND_DIST / path).resolve()
         if path and file.is_file() and file.is_relative_to(FRONTEND_DIST):
             return FileResponse(file)
-        return FileResponse(FRONTEND_DIST / "index.html")  # client-side routes like /interview/<id>
+        # client-side routes like /interview/<id>. no-cache: after a rebuild the browser must fetch the new
+        # index.html (it points at new hashed asset files); the assets themselves can be cached.
+        return FileResponse(FRONTEND_DIST / "index.html", headers={"Cache-Control": "no-cache"})
