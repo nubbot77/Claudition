@@ -17,7 +17,7 @@ import threading
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, TypeVar
 
 from pydantic import BaseModel, ValidationError
 
@@ -37,13 +37,12 @@ RESEARCH_TOOLS = "Agent,WebSearch,WebFetch"
 ROUND_TOOLS = ""  # rounds need no tools: only the StructuredOutput tool that --json-schema adds
 
 # Compact the interview conversation once one request's context reaches this many tokens (the models
-# have a 1M window). The summary keeps what later turns need; the backend re-sends round scores for
-# the final report, so nothing graded depends on the summary alone.
+# have a 1M window). The summary keeps what later turns need; scoring never depends on it, because the
+# judge reads each round's transcript and evidence from the database.
 COMPACT_AT_TOKENS = int(os.environ.get("CLAUDITION_COMPACT_TOKENS", "400000"))
 COMPACT_INSTRUCTIONS = (
     "This is a mock interview. Preserve exactly: the CompanyBlueprint (every round id, type, order, duration, "
-    "difficulty, question_budget); every round_feedback round_score verbatim (score, verdict, rubric items, "
-    "strengths, gaps); the current round id, the interviewer's name, each question asked in the current round "
+    "difficulty, question_budget); which rounds are finished; the current round id, the interviewer's name, each question asked in the current round "
     "and a short summary of each answer; for a coding round the problem statement and the latest test results; "
     "for a group discussion the participants, their stances and the candidate's contributions. Drop research "
     "notes, source lists and word-for-word transcripts of finished rounds."
@@ -73,6 +72,13 @@ class RunResult:
     text: str
     cost_usd: float | None
     init: dict[str, Any] = field(default_factory=dict)
+    usage: dict[str, Any] = field(default_factory=dict)
+
+    def tokens(self) -> tuple[int, int]:
+        """(input incl. cache reads and writes, output) for the whole call."""
+        u = self.usage
+        read = sum(u.get(k, 0) for k in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens"))
+        return read, u.get("output_tokens", 0)
 
 
 # ---------- JSON schema ----------
@@ -167,7 +173,7 @@ def _classify_failure(text: str) -> ClaudeError:
 
 def build_command(
     *, schema: str, session_id: str, resume: bool, system_prompt_file: Path | None,
-    model: str, effort: str, tools: str, stream_input: bool = False,
+    model: str, effort: str, tools: str, stream_input: bool = False, persist: bool = True,
 ) -> list[str]:
     cmd = [
         claude_executable(), "-p",
@@ -190,7 +196,10 @@ def build_command(
     if system_prompt_file is not None:
         # replace Claude Code's coding-agent prompt entirely: ~18K -> ~1.5K base tokens per call
         cmd += ["--system-prompt-file", str(system_prompt_file)]
-    cmd += ["--resume", session_id] if resume else ["--session-id", session_id]
+    if not persist:
+        cmd += ["--no-session-persistence"]  # one-off calls (judge, report): nothing to resume later
+    else:
+        cmd += ["--resume", session_id] if resume else ["--session-id", session_id]
     return cmd
 
 
@@ -203,6 +212,7 @@ def _result_from(final: dict[str, Any], init: dict[str, Any]) -> RunResult:
         text=str(final.get("result") or ""),
         cost_usd=final.get("total_cost_usd"),
         init=init,
+        usage=final.get("usage") or {},
     )
 
 
@@ -210,13 +220,13 @@ def run_claude(
     prompt: str, *, schema: str, session_id: str, resume: bool,
     system_prompt_file: Path | None = None, model: str = ORCHESTRATOR_MODEL,
     effort: str = ORCHESTRATOR_EFFORT, tools: str = ORCHESTRATOR_TOOLS,
-    timeout_s: float = 600, on_progress: ProgressFn | None = None,
+    timeout_s: float = 600, on_progress: ProgressFn | None = None, persist: bool = True,
 ) -> RunResult:
     """Blocking. Call through asyncio.to_thread from async code (works on any Windows event loop)."""
     WORKSPACE_DIR.mkdir(parents=True, exist_ok=True)
     cmd = build_command(
         schema=schema, session_id=session_id, resume=resume,
-        system_prompt_file=system_prompt_file, model=model, effort=effort, tools=tools,
+        system_prompt_file=system_prompt_file, model=model, effort=effort, tools=tools, persist=persist,
     )
     flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
     proc = subprocess.Popen(
@@ -404,7 +414,43 @@ def close_all_sessions() -> None:
 
 # ---------- orchestrator ----------
 
-_STEP_SCHEMA = json_schema_for(OrchestratorStep)
+def _without_fields(schema_text: str, fields: tuple[str, ...]) -> str:
+    schema = json.loads(schema_text)
+    for name in fields:
+        schema["properties"].pop(name, None)
+    schema["required"] = [r for r in schema.get("required", []) if r not in fields]
+    return json.dumps(schema, separators=(",", ":"))
+
+
+# The interviewer never scores: round scores and the report come from separate judge calls, so its
+# schema (sent with every request) leaves those payloads out.
+JUDGED_FIELDS = ("round_score", "report")
+_STEP_SCHEMA = _without_fields(json_schema_for(OrchestratorStep), JUDGED_FIELDS)
+
+M = TypeVar("M", bound=BaseModel)
+
+
+def run_structured(
+    prompt: str, model_type: type[M], *, system_prompt_file: Path, model: str, effort: str,
+    timeout_s: float = 300, schema: str | None = None,
+) -> tuple[M, RunResult]:
+    """A one-off call with no saved session (judge, report writer). Retries once on a missing or invalid result."""
+    schema = schema or json_schema_for(model_type)
+    last_error = ""
+    for attempt in range(2):
+        text = prompt if attempt == 0 else f"{prompt}\n\n{_RETRY_NUDGE}"
+        result = run_claude(
+            text, schema=schema, session_id="", resume=False, system_prompt_file=system_prompt_file,
+            model=model, effort=effort, tools=ROUND_TOOLS, timeout_s=timeout_s, persist=False,
+        )
+        if result.structured is None:
+            last_error = "no structured_output in result"
+            continue
+        try:
+            return model_type.model_validate(result.structured), result
+        except ValidationError as exc:
+            last_error = str(exc)
+    raise ClaudeError(f"{model_type.__name__} call returned no valid result twice: {last_error[:300]}")
 
 _RETRY_NUDGE = (
     "SYSTEM CHECK: your previous turn ended without a valid OrchestratorStep in structured output. "
@@ -437,7 +483,8 @@ def run_orchestrator(
         result = ask(attempt_prompt, first)
         if result.structured is not None:
             try:
-                return OrchestratorStep.model_validate(result.structured), result
+                data = {**dict.fromkeys(JUDGED_FIELDS), **result.structured}
+                return OrchestratorStep.model_validate(data), result
             except ValidationError as exc:
                 last_error = str(exc)
         else:

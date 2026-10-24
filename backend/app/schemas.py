@@ -165,6 +165,17 @@ class FinalReport(BaseModel):
     prep_plan_7d: list[DayPlan]
 
 
+class ReportDraft(BaseModel):
+    """What the report writer produces; the backend adds the recorded round scores."""
+
+    overall_score: int
+    verdict: Verdict
+    summary: str
+    top_strengths: list[str]
+    top_gaps: list[str]
+    prep_plan_7d: list[DayPlan]
+
+
 class OrchestratorStep(BaseModel):
     action: Action
     speech_text: str = Field(description="What the interviewer says aloud now; may be empty")

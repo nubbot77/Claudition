@@ -1,7 +1,9 @@
 """End-to-end interview flow: the real InterviewService + Store + budget + grading, scripted fake orchestrator.
 
 No Claude CLI is involved. `run_orchestrator` is replaced by a fake that pops pre-scripted steps and records every
-prompt the service builds, so the tests can assert on what Opus would have been told at each turn.
+prompt the service builds, so the tests can assert on what the interviewer would have been told at each turn.
+`run_structured` (the separate judge and report calls) is replaced by FakeJudge, which returns fixed scores and
+records what the judge would have read.
 """
 
 from __future__ import annotations
@@ -17,7 +19,7 @@ import pytest
 from app import interview as interview_module
 from app.claude_runner import ClaudeError, RunResult
 from app.interview import Busy, InterviewService
-from app.schemas import EventIn, EventType, InterviewProfile, OrchestratorStep
+from app.schemas import EventIn, EventType, InterviewProfile, OrchestratorStep, ReportDraft, RoundScore
 from app.store import Store
 
 APT, GD, CODE, HR = "r1-apt", "r2-gd", "r3-code", "r4-hr"
@@ -110,16 +112,19 @@ def _score(round_id: str) -> dict:
 
 
 def _feedback(round_id: str, round_type: str) -> OrchestratorStep:
-    return _step("round_feedback", round_id, round_type, "Thanks, that wraps this round.", round_score=_score(round_id))
+    # the interviewer only closes the round; the separate judge (FakeJudge) adds the score
+    return _step("round_feedback", round_id, round_type, "Thanks, that wraps this round.")
+
+
+REPORT_DRAFT = {
+    "overall_score": 64, "verdict": "lean_hire", "summary": "Solid basics, missed an edge case.",
+    "top_strengths": ["Communication"], "top_gaps": ["Edge cases"],
+    "prep_plan_7d": [{"day": 1, "focus": "Edge cases", "tasks": ["Practise five easy array problems"]}],
+}
 
 
 def _final_report() -> OrchestratorStep:
-    report = {
-        "overall_score": 64, "verdict": "lean_hire", "summary": "Solid basics, missed an edge case.",
-        "round_scores": [_score(rid) for rid in SCORES], "top_strengths": ["Communication"], "top_gaps": ["Edge cases"],
-        "prep_plan_7d": [{"day": 1, "focus": "Edge cases", "tasks": ["Practise five easy array problems"]}],
-    }
-    return _step("final_report", speech="That is the end of the interview.", report=report)
+    return _step("final_report", speech="That is the end of the interview.")
 
 
 # ---------- fake orchestrator and driver ----------
@@ -153,6 +158,26 @@ class FakeOrchestrator:
             raise step
         self.sessions.add(session_id)
         return step, RunResult(structured=step.model_dump(mode="json"), session_id=session_id, text="", cost_usd=0.01)
+
+
+class FakeJudge:
+    """Stands in for run_structured: fixed RoundScores from SCORES and a fixed report draft; records every prompt."""
+
+    def __init__(self) -> None:
+        self.judged: list[tuple[str, str]] = []  # (round_id, prompt)
+        self.reports: list[dict[str, Any]] = []
+
+    def __call__(self, prompt: str, model_type: type, **_ignored: Any) -> tuple[Any, RunResult]:
+        data = json.loads(prompt.split("DATA:\n", 1)[1].split("\n\nROUND TRANSCRIPT:", 1)[0])
+        if model_type is RoundScore:
+            round_id = data["round"]["id"]
+            self.judged.append((round_id, prompt))
+            value = RoundScore.model_validate(_score(round_id))
+        else:
+            assert model_type is ReportDraft
+            self.reports.append(data)
+            value = ReportDraft.model_validate(REPORT_DRAFT)
+        return value, RunResult(structured=value.model_dump(mode="json"), session_id=None, text="", cost_usd=0.02)
 
 
 async def _settle(service: InterviewService) -> None:
@@ -237,7 +262,14 @@ def service(tmp_path) -> InterviewService:
 
 
 @pytest.fixture
-def fake(service, monkeypatch) -> FakeOrchestrator:
+def judge(monkeypatch) -> FakeJudge:
+    judge = FakeJudge()
+    monkeypatch.setattr(interview_module, "run_structured", judge)
+    return judge
+
+
+@pytest.fixture
+def fake(service, monkeypatch, judge) -> FakeOrchestrator:
     fake = FakeOrchestrator(service)
     monkeypatch.setattr(interview_module, "run_orchestrator", fake)
     monkeypatch.setattr(interview_module, "session_exists", fake.session_exists)
@@ -247,11 +279,11 @@ def fake(service, monkeypatch) -> FakeOrchestrator:
 # ---------- tests ----------
 
 
-def test_full_interview_from_blueprint_to_final_report(service, fake):
-    asyncio.run(_full_interview(Flow(service, fake)))
+def test_full_interview_from_blueprint_to_final_report(service, fake, judge):
+    asyncio.run(_full_interview(Flow(service, fake), judge))
 
 
-async def _full_interview(flow: Flow) -> None:
+async def _full_interview(flow: Flow, judge: FakeJudge) -> None:
     service, fake = flow.service, flow.fake
 
     # research -> blueprint (cached for the next interview with the same company/role/level)
@@ -365,6 +397,16 @@ async def _full_interview(flow: Flow) -> None:
     assert state["round_progress"] is None
     assert [(s["round_id"], s["score"]) for s in state["round_scores"]] == [(rid, SCORES[rid][1]) for rid in SCORES]
     _assert_nothing_secret(state)
+
+    # scoring happened outside the interview session, once per round, from the round's own evidence
+    assert [rid for rid, _ in judge.judged] == [APT, GD, CODE, HR]
+    prompts = dict(judge.judged)
+    assert "12 x 12" in prompts[APT] and '"correct": 1' in prompts[APT]  # MCQ questions with the right answers
+    assert "print(a - b)" in prompts[CODE] and "hidden tests 2/3" in prompts[CODE]  # the submitted code itself
+    assert "Remote work" not in prompts[HR]  # another round's material stays out
+    assert state["step"]["report"]["round_scores"] == state["round_scores"]  # report reuses saved scores
+    assert [r["round_id"] for r in judge.reports[0]["judged_rounds"]] == [APT, GD, CODE, HR]
+    assert not any("round_score" in c.prompt or "recorded_round_scores" in c.prompt for c in fake.calls)
 
     # whole-run invariants
     assert len(fake.calls) == 16  # 14 turns + 2 budget nudges

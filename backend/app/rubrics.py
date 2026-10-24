@@ -1,7 +1,7 @@
-"""Judging rubrics per round type. Rendered into the orchestrator's system prompt.
+"""Judging rubrics per round type. Sent to the judge with each round it scores.
 
 Each rubric is a list of (criterion, weight); weights in one rubric sum to 1.0.
-Opus scores every criterion 0-10 from evidence, and the round score is the weighted sum x 10.
+The judge scores every criterion 0-10 from evidence, and the round score is the weighted sum x 10.
 """
 
 from __future__ import annotations
@@ -86,13 +86,3 @@ CALIBRATION = {
 
 def rubric_for(round_type: RoundType) -> Rubric:
     return RUBRICS.get(round_type, GENERIC)
-
-
-def rubric_prompt_section() -> str:
-    lines = ["# Rubrics (criterion: weight)"]
-    for round_type in RoundType:
-        items = ", ".join(f"{name}: {weight:g}" for name, weight in rubric_for(round_type))
-        lines.append(f"- {round_type.value}: {items}")
-    for round_type, note in CALIBRATION.items():
-        lines.append(f"\n{round_type.value} calibration: {note}")
-    return "\n".join(lines)

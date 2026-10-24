@@ -1,4 +1,9 @@
-"""Interview service: turns UI events into orchestrator turns and stores what Opus returns."""
+"""Interview service: turns UI events into interviewer turns, has rounds judged, stores the results.
+
+The interview conversation runs on one model in one session. Scoring is separate: when the interviewer
+closes a round, a one-off judge call reads only that round's transcript and evidence; the final report
+is written from the saved round scores.
+"""
 
 from __future__ import annotations
 
@@ -10,20 +15,28 @@ from pathlib import Path
 from typing import Any
 
 from .budget import RoundProgress, compute_progress, violation
-from .claude_runner import DATA_DIR, ClaudeError, close_session, run_orchestrator
-from .routing import JUDGE, Route, needs_judge, route
+from .claude_runner import DATA_DIR, ClaudeError, close_session, run_orchestrator, run_structured
+from .routing import JUDGE, Route, route
 from .code_runner import available_languages, run_tests
 from .diagram import describe as describe_diagram
-from .rubrics import rubric_prompt_section
-from .schemas import Action, EventIn, EventType, InterviewProfile, OrchestratorStep, RoundType, public_step
+from .rubrics import CALIBRATION, rubric_for
+from .schemas import (
+    Action, EventIn, EventType, FinalReport, InterviewProfile, OrchestratorStep, ReportDraft, RoundScore, RoundType,
+    public_step,
+)
 from .store import Store, now
 
-PROMPT_TEMPLATE = Path(__file__).parent / "prompts" / "orchestrator.md"
+PROMPTS_DIR = Path(__file__).parent / "prompts"
+PROMPT_TEMPLATE = PROMPTS_DIR / "orchestrator.md"
+JUDGE_PROMPT_FILE = PROMPTS_DIR / "judge.md"
+REPORT_PROMPT_FILE = PROMPTS_DIR / "report.md"
 SYSTEM_PROMPT_FILE = DATA_DIR / "orchestrator_prompt.md"
 CLAUDE_PROJECTS_DIR = Path.home() / ".claude" / "projects"
 
 RESEARCH_TIMEOUT_S = 15 * 60
 TURN_TIMEOUT_S = 6 * 60
+JUDGE_TIMEOUT_S = 5 * 60
+MAX_CODE_CHARS = 8000
 MAX_PROGRESS_LINES = 40
 
 
@@ -37,8 +50,7 @@ class NotFound(Exception):
 
 def render_system_prompt() -> Path:
     SYSTEM_PROMPT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    text = PROMPT_TEMPLATE.read_text(encoding="utf-8") + "\n\n" + rubric_prompt_section() + "\n"
-    SYSTEM_PROMPT_FILE.write_text(text, encoding="utf-8")
+    SYSTEM_PROMPT_FILE.write_text(PROMPT_TEMPLATE.read_text(encoding="utf-8"), encoding="utf-8")
     return SYSTEM_PROMPT_FILE
 
 
@@ -164,19 +176,15 @@ class InterviewService:
                     f"BUDGET CHECK: your last step was rejected because {reason}. "
                     f"{progress.instruction} Re-send a valid step now."
                 )
-                how = JUDGE if progress.must_wrap_up else how
                 step, result = await asyncio.to_thread(ask, nudge, False, how)
                 if violation(progress, step):
                     self._note(interview_id, "Budget still exceeded after one retry; accepting the step.")
-            if needs_judge(how, step.action):
-                self._note(interview_id, "Handing the scoring to the judge model…")
-                nudge = (
-                    f"JUDGE: produce the {step.action.value} now as the judge. Evaluate the candidate independently "
-                    "from the evidence in this conversation; do not copy the previous draft's scores."
-                )
-                step, result = await asyncio.to_thread(ask, nudge, False, JUDGE)
             if result.cost_usd is not None:
                 self._note(interview_id, f"Session cost estimate so far ${result.cost_usd:.3f} (counts toward your plan's usage)")
+            if step.action == Action.round_feedback and step.round_id:
+                step.round_score = await asyncio.to_thread(self._judge_round, interview, step.round_id)
+            elif step.action == Action.final_report:
+                step.report = await asyncio.to_thread(self._write_report, interview)
             self._record_step(interview_id, interview, step)
             if step.action == Action.final_report:
                 await asyncio.to_thread(close_session, interview_id)
@@ -221,7 +229,7 @@ class InterviewService:
         starts_round = between and event.type in (EventType.begin_rounds, EventType.continue_)
         current = None if event.type == EventType.begin_rounds else (step or {}).get("round_id")
         all_done = starts_round and _next_round(interview["blueprint"], current) is None
-        return route(event.type, progress, starts_round, all_done)
+        return route(event.type, starts_round and not all_done)
 
     def _round_progress(self, interview: dict[str, Any], round_id: str, time_up: bool = False) -> RoundProgress | None:
         rounds = (interview.get("blueprint") or {}).get("rounds", [])
@@ -258,6 +266,9 @@ class InterviewService:
                 self._note(interview_id, "Using cached research for this company and role")
             return _event_prompt(event.type.value, None, data), None
 
+        if board:
+            self.store.add_evidence(interview_id, round_id, "whiteboard", {"description": board})
+
         if event.type == EventType.candidate_answer:
             text = str(payload.get("text", ""))
             if board:
@@ -280,19 +291,72 @@ class InterviewService:
             payload["next_round"] = _round_summary(upcoming)
             if upcoming is None:
                 payload["all_rounds_done"] = True
-                payload["recorded_round_scores"] = self._recorded_scores(interview_id)
-        elif event.type == EventType.end_interview:
-            payload["recorded_round_scores"] = self._recorded_scores(interview_id)
-        elif round_id:
+        elif event.type != EventType.end_interview and round_id:
             progress = self._round_progress(interview, round_id, time_up=event.type == EventType.time_up)
             if progress:
                 payload["round_budget"] = progress.as_dict()
         return _event_prompt(event.type.value, round_id, payload), progress
 
-    def _recorded_scores(self, interview_id: str) -> list[dict[str, Any]]:
-        """Round scores as saved by the backend, compact enough to re-send for the final report."""
-        keep = ("round_id", "round_name", "score", "verdict", "gaps")
-        return [{k: s.get(k) for k in keep} for s in self.store.round_scores(interview_id)]
+    # ---------- judging (one-off calls, outside the interview session) ----------
+
+    def _judge_round(self, interview: dict[str, Any], round_id: str) -> RoundScore:
+        interview_id = interview["id"]
+        rounds = (interview.get("blueprint") or {}).get("rounds", [])
+        rnd = next((r for r in rounds if r["id"] == round_id), {"id": round_id, "name": round_id, "type": "technical"})
+        rtype = RoundType(rnd["type"])
+        profile = interview["profile"]
+        turns = [
+            f"{'Candidate' if e['role'] == 'candidate' else e['speaker']}: {e['text']}"
+            for e in self.store.transcript(interview_id)
+            if e["round_id"] == round_id and e["role"] != "system"
+        ]
+        data = {
+            "candidate": {k: profile.get(k) for k in ("company", "role", "experience")},
+            "round": {k: rnd.get(k) for k in ("id", "name", "type", "difficulty", "duration_min", "focus")},
+            "rubric": [{"criterion": c, "weight": w} for c, w in rubric_for(rtype)],
+            "calibration": CALIBRATION.get(rtype),
+            "evidence": self.store.round_evidence(interview_id, round_id),
+        }
+        prompt = (
+            "Score this round.\nDATA:\n" + json.dumps(data, ensure_ascii=False, indent=1)
+            + "\n\nROUND TRANSCRIPT:\n" + "\n".join(turns)
+        )
+        self._note(interview_id, f"Judge: {JUDGE.model.removeprefix('claude-')} ({JUDGE.effort} effort) scoring {rnd.get('name')}")
+        score, result = run_structured(
+            prompt, RoundScore, system_prompt_file=JUDGE_PROMPT_FILE, model=JUDGE.model, effort=JUDGE.effort,
+            timeout_s=JUDGE_TIMEOUT_S,
+        )
+        if result.cost_usd is not None:
+            read, out = result.tokens()
+            self._note(interview_id, f"Judge call: {read / 1000:.1f}K tokens in, {out / 1000:.1f}K out, cost estimate ${result.cost_usd:.3f}")
+        return score.model_copy(update={"round_id": round_id, "round_name": rnd.get("name", round_id)})
+
+    def _write_report(self, interview: dict[str, Any]) -> FinalReport:
+        interview_id = interview["id"]
+        rounds = sorted((interview.get("blueprint") or {}).get("rounds", []), key=lambda r: r["order"])
+        scored = {s["round_id"] for s in self.store.round_scores(interview_id)}
+        # a round the candidate left part-way (end_interview) is judged on what it has
+        answered = {e["round_id"] for e in self.store.transcript(interview_id) if e["role"] == "candidate"}
+        for rnd in rounds:
+            if rnd["id"] in answered and rnd["id"] not in scored:
+                score = self._judge_round(interview, rnd["id"])
+                self.store.save_round_score(interview_id, score.round_id, score.model_dump(mode="json"))
+        scores = [RoundScore.model_validate(s) for s in self.store.round_scores(interview_id)]
+        keep = ("round_id", "round_name", "score", "verdict", "strengths", "gaps")
+        data = {
+            "candidate": {k: interview["profile"].get(k) for k in ("company", "role", "experience")},
+            "planned_rounds": [{k: r.get(k) for k in ("id", "name", "type")} for r in rounds],
+            "judged_rounds": [{k: getattr(s, k) for k in keep} for s in scores],
+        }
+        self._note(interview_id, f"Judge: {JUDGE.model.removeprefix('claude-')} ({JUDGE.effort} effort) writing the report")
+        draft, result = run_structured(
+            "Write the final report.\nDATA:\n" + json.dumps(data, ensure_ascii=False, indent=1), ReportDraft,
+            system_prompt_file=REPORT_PROMPT_FILE, model=JUDGE.model, effort=JUDGE.effort, timeout_s=JUDGE_TIMEOUT_S,
+        )
+        if result.cost_usd is not None:
+            read, out = result.tokens()
+            self._note(interview_id, f"Report call: {read / 1000:.1f}K tokens in, {out / 1000:.1f}K out, cost estimate ${result.cost_usd:.3f}")
+        return FinalReport(**draft.model_dump(), round_scores=scores)
 
     def _grade_code(self, interview_id: str, step: OrchestratorStep, payload: dict[str, Any]) -> dict[str, Any]:
         problem = step.coding_problem
@@ -309,6 +373,15 @@ class InterviewService:
         if examples.compile_error:
             summary += " (compile error)"
         self.store.add_transcript(interview_id, "candidate", "You", summary, step.round_id)
+        self.store.add_evidence(interview_id, step.round_id, "code_submission", {
+            "problem": problem.title,
+            "statement": problem.statement,
+            "language": language,
+            "code": code[:MAX_CODE_CHARS],
+            "explanation": payload.get("explanation", ""),
+            "result": summary,
+            "first_failed_hidden_tests": failed_hidden,
+        })
         return {
             "language": language,
             "code": code,
@@ -331,6 +404,16 @@ class InterviewService:
         unanswered = sum(g["chosen"] is None for g in graded)
         summary = f"{section.name}: {right}/{len(graded)} correct, {unanswered} unanswered"
         self.store.add_transcript(interview_id, "candidate", "You", summary, step.round_id)
+        self.store.add_evidence(interview_id, step.round_id, "mcq_section", {
+            "section": section.name,
+            "result": summary,
+            "seconds_taken": payload.get("seconds_taken"),
+            "time_limit_min": section.time_limit_min,
+            "questions": [
+                {"question": q.question, "options": q.options, "chosen": g["chosen"], "correct": q.answer_index}
+                for q, g in zip(section.questions, graded)
+            ],
+        })
         return {
             "section": section.name,
             "score": f"{right}/{len(graded)}",

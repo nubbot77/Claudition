@@ -52,6 +52,14 @@ CREATE TABLE IF NOT EXISTS steps (
     gd_concluded INTEGER NOT NULL DEFAULT 0,
     at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS evidence (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    interview_id TEXT NOT NULL,
+    round_id TEXT,
+    kind TEXT NOT NULL,
+    data TEXT NOT NULL,
+    at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS blueprint_cache (
     key TEXT PRIMARY KEY,
     blueprint TEXT NOT NULL,
@@ -147,6 +155,22 @@ class Store:
                 (interview_id,),
             ).fetchall()
         return [dict(r) for r in rows]
+
+    def add_evidence(self, interview_id: str, round_id: str | None, kind: str, data: dict[str, Any]) -> None:
+        """Material the judge needs beyond the transcript: submitted code, MCQ details, whiteboard."""
+        with self._conn() as db:
+            db.execute(
+                "INSERT INTO evidence (interview_id, round_id, kind, data, at) VALUES (?, ?, ?, ?, ?)",
+                (interview_id, round_id, kind, json.dumps(data, ensure_ascii=False), now()),
+            )
+
+    def round_evidence(self, interview_id: str, round_id: str) -> list[dict[str, Any]]:
+        with self._conn() as db:
+            rows = db.execute(
+                "SELECT kind, data FROM evidence WHERE interview_id = ? AND round_id = ? ORDER BY id",
+                (interview_id, round_id),
+            ).fetchall()
+        return [{"kind": r["kind"], **json.loads(r["data"])} for r in rows]
 
     def log_step(
         self, interview_id: str, round_id: str | None, action: str, question_kind: str | None, gd_concluded: bool

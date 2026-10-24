@@ -20,8 +20,8 @@ You enter a company, a role, your experience level, the job description and your
 
 ```
 React (Vite)  ──/api──>  FastAPI  ──subprocess──>  claude -p   (your own Claude Code login)
-                                                   ├─ Opus 5.5:   research synthesis, round scoring, final report
-                                                   ├─ Sonnet 5.5: round setup and interview questions
+                                                   ├─ Sonnet 5.5: the interview conversation (one session)
+                                                   ├─ Opus 5.5:   research, and a separate judge call per round + report
                                                    └─ Haiku 5.5 subagents: web research, JD analysis
 ```
 
@@ -136,7 +136,7 @@ backend/app/
   code_runner.py     local code execution with timeouts
   diagram.py         whiteboard (Excalidraw) -> text description for the interviewer
   tts.py             Kokoro neural TTS (GPU with CPU fallback)
-  prompts/orchestrator.md, agents.json
+  prompts/            interviewer, judge and report prompts; agents.json
 frontend/src/        React + TypeScript UI (shadcn/ui, Motion, Monaco)
 ```
 
