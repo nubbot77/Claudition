@@ -297,7 +297,7 @@ const TECH_F2 =
 
 const NEHA = "Neha Kapoor, SDE-3 (Loop Interviewer)";
 const DESIGN_Q1 =
-  "Let's design a parking system for a multi-level mall garage. Start with the main classes and how they relate. Then walk me through how a car gets a spot when it enters, and what happens when the garage is full. Sketch your classes in the scratchpad as you go.";
+  "Let's design a parking system for a multi-level mall garage. Start with the main classes and how they relate. Then walk me through how a car gets a spot when it enters, and what happens when the garage is full. Sketch your classes on the whiteboard as you go.";
 
 /* ---------------------------------------------------------------------------------------------- */
 /* Helpers                                                                                         */
@@ -656,7 +656,7 @@ export function buildFixtures(now = Date.now()): Record<ScreenName, Fixture> {
     {
       name: "ask_question_design",
       label: "System design question",
-      description: "Amazon loop round 5 (object-oriented / light design) with the scratchpad; rounds 1-4 scored.",
+      description: "Amazon loop round 5 (object-oriented / light design) with the whiteboard; rounds 1-4 scored.",
       state: baseState({
         id: "preview-design",
         profile: amazonProfile,

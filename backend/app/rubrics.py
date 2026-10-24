@@ -59,8 +59,28 @@ RUBRICS: dict[RoundType, Rubric] = {
         ("Leadership and summarizing", 0.15),
         ("Communication", 0.1),
     ],
-    # TODO(human): add the RoundType.coding rubric here (criteria + weights summing to 1.0).
-    # Until then coding rounds fall back to GENERIC, which ignores code quality and complexity.
+    # Judged against the round's `difficulty` and the company's bar (see CALIBRATION below):
+    # an O(n^2) brute force can be full marks on an easy service-company problem and a fail at a
+    # product company on a medium/hard one.
+    RoundType.coding: [
+        ("Correctness: passes examples and hidden tests", 0.3),
+        ("Efficiency: time/space complexity vs. the expected optimal for this difficulty", 0.2),
+        ("Code quality: readable names, clean structure, idiomatic, no dead code", 0.2),
+        ("Edge cases and robustness", 0.1),
+        ("Explanation: approach, complexity and trade-offs stated clearly", 0.2),
+    ],
+}
+
+CALIBRATION = {
+    RoundType.coding: (
+        "Calibrate coding scores to the round's `difficulty` and the company's real bar. "
+        "Efficiency: full marks only for the optimal complexity expected at that level; for easy rounds "
+        "at service companies a correct simple solution is enough, for medium/hard rounds at product "
+        "companies a brute force scores at most 4. Code quality: judge as a professional reviewer would "
+        "(meaningful names, small functions, no magic numbers or copy-paste, idiomatic for the language). "
+        "Explanation: from the candidate's written explanation and follow-up answers; full marks need the "
+        "approach, exact time and space complexity, and at least one trade-off or alternative."
+    ),
 }
 
 
@@ -73,4 +93,6 @@ def rubric_prompt_section() -> str:
     for round_type in RoundType:
         items = ", ".join(f"{name}: {weight:g}" for name, weight in rubric_for(round_type))
         lines.append(f"- {round_type.value}: {items}")
+    for round_type, note in CALIBRATION.items():
+        lines.append(f"\n{round_type.value} calibration: {note}")
     return "\n".join(lines)

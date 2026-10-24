@@ -283,6 +283,8 @@ export interface CandidateAnswerPayload {
   text: string;
   answer_mode: AnswerMode;
   seconds_taken: number;
+  /** Excalidraw elements, sent in system design rounds when the whiteboard changed */
+  diagram?: Record<string, unknown>[];
 }
 
 export interface CodeSubmittedPayload {

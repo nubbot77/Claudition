@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { CornerDownRight } from "lucide-react";
 import { normalizeText } from "../format";
 import { useSpeakOnMount, type Tts } from "../hooks/useSpeech";
@@ -9,6 +9,8 @@ import { InterviewerBubble } from "./InterviewerBubble";
 import { SidePanel } from "./room/SidePanel";
 import { Timer } from "./Timer";
 import { TranscriptList } from "./TranscriptList";
+import { slimBoard, type BoardElement } from "./whiteboard/board";
+import { Whiteboard } from "./whiteboard/Whiteboard";
 
 interface Props {
   step: PublicStep;
@@ -32,106 +34,113 @@ function withoutCurrentQuestion(entries: TranscriptEntry[], question: string): T
 export function VoiceRound({ step, entries, tts, stepKey, roundKey, busy, error, onAnswer }: Props) {
   const startedAt = useStartTime(`${stepKey}:started`);
   const [answer, setAnswer] = useSessionState(`${stepKey}:answer`, "");
-  const [scratch, setScratch] = useSessionState(`${roundKey}:scratchpad`, "");
   const [usedVoice, setUsedVoice] = useState(false);
   const isDesign = step.round_type === "system_design";
   const history = useMemo(() => withoutCurrentQuestion(entries, step.speech_text), [entries, step.speech_text]);
   const markVoice = useCallback(() => setUsedVoice(true), []);
   const followUp = step.question_kind === "follow_up";
 
+  // Whiteboard: the board is sent only when it changed since the last answer, so the interviewer
+  // never re-reads an unchanged diagram (each copy costs tokens on every later turn).
+  const board = useRef<readonly BoardElement[]>([]);
+  const [boardSig, setBoardSig] = useState("");
+  const [sentSig, setSentSig] = useSessionState(`${roundKey}:board-sent`, "");
+  const onBoardChange = useCallback((elements: readonly BoardElement[], signature: string) => {
+    board.current = elements;
+    setBoardSig(signature);
+  }, []);
+  const boardPending = isDesign && boardSig !== "" && boardSig !== sentSig;
+
   useSpeakOnMount(tts, () => [{ text: step.speech_text }]);
 
   const submit = () => {
-    const body = answer.trim();
-    const pad = isDesign ? scratch.trim() : "";
-    onAnswer({
-      text: pad ? `${body}\n\n[Scratchpad]\n${pad}` : body,
+    const payload: CandidateAnswerPayload = {
+      text: answer.trim(),
       answer_mode: usedVoice ? "voice" : "text",
       seconds_taken: Math.round((Date.now() - startedAt) / 1000),
-    });
+    };
+    if (boardPending) {
+      payload.diagram = slimBoard(board.current);
+      setSentSig(boardSig);
+    }
+    onAnswer(payload);
   };
 
-  return (
-    <div
-      className={
-        isDesign
-          ? "grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_25rem]"
-          : "grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]"
+  const composer = (
+    <AnswerComposer
+      id="answer"
+      label="Your answer"
+      placeholder={
+        isDesign ? "Explain your design while you draw it on the whiteboard…" : "Speak or type your answer…"
       }
+      value={answer}
+      setValue={setAnswer}
+      onVoiceUsed={markVoice}
+      onListenStart={tts.cancel}
+      onSubmit={submit}
+      submitLabel="Submit answer"
+      busy={busy}
+      canSubmit={answer.trim().length > 0 || boardPending}
+      error={error}
+      meta={<Timer mode="elapsed" variant="plain" since={startedAt} label="Answer time" />}
+    />
+  );
+
+  const transcript = (
+    <SidePanel
+      title="Transcript"
+      titleId="round-log-title"
+      description="Everything said in this round so far."
+      meta={history.length ? `${history.length} ${history.length === 1 ? "entry" : "entries"}` : undefined}
     >
-      <div className="flex min-w-0 flex-col gap-4">
-        <InterviewerBubble
-          name={step.interviewer_name}
-          text={step.speech_text}
-          tts={tts}
-          kicker={
-            followUp ? (
-              <span className="inline-flex items-center gap-1.5 text-accent-soft-foreground">
-                <CornerDownRight aria-hidden="true" className="size-3.5" />
-                Follow-up on your last answer
-              </span>
-            ) : undefined
-          }
-        />
-        <AnswerComposer
-          id="answer"
-          label="Your answer"
-          placeholder={
-            isDesign
-              ? "Talk through your design. Use the scratchpad for classes and APIs…"
-              : "Speak or type your answer…"
-          }
-          value={answer}
-          setValue={setAnswer}
-          onVoiceUsed={markVoice}
-          onListenStart={tts.cancel}
-          onSubmit={submit}
-          submitLabel="Submit answer"
-          busy={busy}
-          canSubmit={answer.trim().length > 0 || (isDesign && scratch.trim().length > 0)}
-          error={error}
-          meta={<Timer mode="elapsed" variant="plain" since={startedAt} label="Answer time" />}
-        />
+      <TranscriptList
+        items={history}
+        label="Round transcript"
+        emptyText="This is the first question of the round."
+        className={isDesign ? "max-h-80" : "max-h-[32rem]"}
+      />
+    </SidePanel>
+  );
+
+  const bubble = (
+    <InterviewerBubble
+      name={step.interviewer_name}
+      text={step.speech_text}
+      tts={tts}
+      kicker={
+        followUp ? (
+          <span className="inline-flex items-center gap-1.5 text-accent-soft-foreground">
+            <CornerDownRight aria-hidden="true" className="size-3.5" />
+            Follow-up on your last answer
+          </span>
+        ) : undefined
+      }
+    />
+  );
+
+  if (isDesign) {
+    return (
+      <div className="flex min-w-0 flex-col gap-6">
+        {bubble}
+        <Whiteboard storageKey={`${roundKey}:whiteboard`} onChange={onBoardChange} pending={boardPending} />
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+          {composer}
+          <aside className="flex min-w-0 flex-col gap-4" aria-label="Round notes">
+            {transcript}
+          </aside>
+        </div>
       </div>
+    );
+  }
 
+  return (
+    <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      <div className="flex min-w-0 flex-col gap-4">
+        {bubble}
+        {composer}
+      </div>
       <aside className="flex min-w-0 flex-col gap-4" aria-label="Round notes">
-        {isDesign && (
-          <SidePanel
-            title={
-              <label htmlFor="scratchpad" className="cursor-text">
-                Scratchpad
-              </label>
-            }
-            description="Attached to every answer in this round."
-            descriptionId="scratchpad-hint"
-            meta={scratch.trim() ? `${scratch.split("\n").length} lines` : undefined}
-          >
-            <textarea
-              id="scratchpad"
-              rows={12}
-              value={scratch}
-              aria-describedby="scratchpad-hint"
-              spellCheck={false}
-              placeholder={"Components, classes and APIs\nData model\nTrade-offs and open questions"}
-              onChange={(e) => setScratch(e.target.value)}
-              className="block min-h-64 w-full resize-y rounded-md border border-input bg-muted/40 px-3 py-2.5 font-mono text-[13px] leading-6 text-foreground outline-none placeholder:text-muted-foreground/60 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/20"
-            />
-          </SidePanel>
-        )}
-
-        <SidePanel
-          title="Transcript"
-          titleId="round-log-title"
-          description="Everything said in this round so far."
-          meta={history.length ? `${history.length} ${history.length === 1 ? "entry" : "entries"}` : undefined}
-        >
-          <TranscriptList
-            items={history}
-            label="Round transcript"
-            emptyText="This is the first question of the round."
-            className={isDesign ? "max-h-80" : "max-h-[32rem]"}
-          />
-        </SidePanel>
+        {transcript}
       </aside>
     </div>
   );

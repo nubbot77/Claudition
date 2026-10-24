@@ -13,6 +13,7 @@ from .budget import RoundProgress, compute_progress, violation
 from .claude_runner import DATA_DIR, ClaudeError, close_session, run_orchestrator
 from .routing import JUDGE, Route, needs_judge, route
 from .code_runner import available_languages, run_tests
+from .diagram import describe as describe_diagram
 from .rubrics import rubric_prompt_section
 from .schemas import Action, EventIn, EventType, InterviewProfile, OrchestratorStep, RoundType, public_step
 from .store import Store, now
@@ -239,6 +240,9 @@ class InterviewService:
         step = OrchestratorStep.model_validate(interview["step"]) if interview["step"] else None
         round_id = step.round_id if step else None
         payload = dict(event.payload)
+        board = describe_diagram(payload.pop("diagram", None)) if "diagram" in payload else ""
+        if board:
+            payload["whiteboard"] = board
 
         if event.type == EventType.start_interview:
             profile = interview["profile"]
@@ -255,7 +259,10 @@ class InterviewService:
             return _event_prompt(event.type.value, None, data), None
 
         if event.type == EventType.candidate_answer:
-            self.store.add_transcript(interview_id, "candidate", "You", str(payload.get("text", "")), round_id)
+            text = str(payload.get("text", ""))
+            if board:
+                text = f"{text}\n\n[{board.splitlines()[0]}]".strip()
+            self.store.add_transcript(interview_id, "candidate", "You", text, round_id)
 
         elif event.type == EventType.gd_user_spoke:
             self.store.add_transcript(interview_id, "candidate", "You", str(payload.get("text", "")), round_id)
